@@ -126,7 +126,9 @@ function canvasTexture(w, h, draw) {
 // confirm address, sent, problem, cancelled) and its buttons can be tapped on
 // the screen: onOrderAction(tool, args) runs the same tool as saying it,
 // onClose() dismisses. The email box types through a hidden <input>.
-export default function TabletBot3D({ mood = 'idle', speaking = false, busy = false, levelRef, lookRef, eyeColor = '#2f7bff', faceColor = '#e2e3e5', bill = null, onOrderAction, onClose, theme = 'dark' }) {
+// scene: 'table' (the bot on a laid dining table), 'bot' (just the bot, framed close) or
+// 'screen' (only what is on the tablet's screen, flat and filling the page: no 3D at all)
+export default function TabletBot3D({ mood = 'idle', speaking = false, busy = false, levelRef, lookRef, eyeColor = '#2f7bff', faceColor = '#e2e3e5', bill = null, onOrderAction, onClose, theme = 'dark', scene: sceneKind = 'table' }) {
   const mountRef = useRef(null)
   const props = useRef({})
   props.current = { mood, speaking, busy, levelRef, lookRef, eyeColor, faceColor, bill, onOrderAction, onClose, theme }
@@ -145,7 +147,8 @@ export default function TabletBot3D({ mood = 'idle', speaking = false, busy = fa
     renderer.outputColorSpace = THREE.SRGBColorSpace
     renderer.toneMapping = THREE.ACESFilmicToneMapping
     renderer.toneMappingExposure = 1.0
-    mount.appendChild(renderer.domElement)
+    const screenOnly = sceneKind === 'screen'
+    if (!screenOnly) mount.appendChild(renderer.domElement)
 
     const scene = new THREE.Scene()
     const pmrem = new THREE.PMREMGenerator(renderer)
@@ -258,6 +261,12 @@ export default function TabletBot3D({ mood = 'idle', speaking = false, busy = fa
     // ---------- the face, on the screen ----------
     const faceCanvas = Object.assign(document.createElement('canvas'), { width: FACE_W * S, height: FACE_H * S })
     const fctx = faceCanvas.getContext('2d')
+    // screen-only view: the face canvas itself is the page (letterboxed, like the screen's 1.45:1)
+    if (screenOnly) {
+      faceCanvas.className = 'tablet-screen'
+      mount.appendChild(faceCanvas)
+    }
+    const view = screenOnly ? faceCanvas : renderer.domElement // what the pointer events land on
     const faceTex = new THREE.CanvasTexture(faceCanvas)
     faceTex.colorSpace = THREE.SRGBColorSpace
     faceTex.anisotropy = 4
@@ -331,6 +340,7 @@ export default function TabletBot3D({ mood = 'idle', speaking = false, busy = fa
     const woodEdge = new THREE.MeshStandardMaterial({ color: '#4a2c18', roughness: 0.55 })
     const woodDark = new THREE.MeshStandardMaterial({ color: '#2e1b0f', roughness: 0.7 })
     const table = new THREE.Group()
+    table.visible = sceneKind !== 'bot' // bot-only view: no table, chairs or place settings
     rig.add(table)
     const topGeo = new THREE.CylinderGeometry(TABLE.r, TABLE.r - 0.04, TABLE.thick, 160)
     mesh(topGeo, [woodEdge, woodTop, woodDark], [0, TABLE.top - TABLE.thick / 2, 0], null, table)
@@ -731,16 +741,22 @@ export default function TabletBot3D({ mood = 'idle', speaking = false, busy = fa
     // tapping a button on the screen (a click, not an orbit drag)
     const raycaster = new THREE.Raycaster()
     const ndc = new THREE.Vector2()
+    const buttonAt = (x, y) => buttons.find((b) => x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h) || null
     const hitButton = (e) => {
       if (!buttons.length) return null
-      const r = renderer.domElement.getBoundingClientRect()
+      const r = view.getBoundingClientRect()
+      if (screenOnly) {
+        // the canvas is letterboxed (object-fit: contain): undo the centring and scale
+        const scale = Math.min(r.width / FACE_W, r.height / FACE_H)
+        const x = (e.clientX - r.left - (r.width - FACE_W * scale) / 2) / scale
+        const y = (e.clientY - r.top - (r.height - FACE_H * scale) / 2) / scale
+        return buttonAt(x, y)
+      }
       ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1)
       raycaster.setFromCamera(ndc, camera)
       const hit = raycaster.intersectObject(faceMesh)[0]
       if (!hit?.uv) return null
-      const x = hit.uv.x * FACE_W
-      const y = (1 - hit.uv.y) * FACE_H
-      return buttons.find((b) => x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h) || null
+      return buttonAt(hit.uv.x * FACE_W, (1 - hit.uv.y) * FACE_H)
     }
     let downAt = null
     const onDown = (e) => (downAt = { x: e.clientX, y: e.clientY })
@@ -757,16 +773,21 @@ export default function TabletBot3D({ mood = 'idle', speaking = false, busy = fa
     const onMove = (e) => {
       if (e.buttons) return
       const b = hitButton(e)
-      renderer.domElement.style.cursor = b ? (b.text ? 'text' : 'pointer') : ''
+      view.style.cursor = b ? (b.text ? 'text' : 'pointer') : ''
     }
-    renderer.domElement.addEventListener('pointerdown', onDown)
-    renderer.domElement.addEventListener('pointerup', onUp)
-    renderer.domElement.addEventListener('pointermove', onMove)
+    view.addEventListener('pointerdown', onDown)
+    view.addEventListener('pointerup', onUp)
+    view.addEventListener('pointermove', onMove)
 
     // ---------- framing + orbit controls ----------
     // drag to turn around it, scroll / pinch to zoom, double-click resets
-    const TARGET = new THREE.Vector3(0, -1.1, 0)
-    const HOME_DIR = new THREE.Vector3(0, Math.sin(THREE.MathUtils.degToRad(19)), Math.cos(THREE.MathUtils.degToRad(19))) // ~19° above the tabletop
+    const botOnly = sceneKind === 'bot'
+    // what to frame: the 12-unit table top, or the bot itself (base to tablet top is ~2.9 units)
+    const TARGET = botOnly ? new THREE.Vector3(0, -0.2, 0) : new THREE.Vector3(0, -1.1, 0)
+    const SPAN = botOnly ? 3.6 : 12
+    const FILL_H = botOnly ? 0.8 : 0.89
+    const FILL_W = 0.85
+    const HOME_DIR = new THREE.Vector3(0, Math.sin(THREE.MathUtils.degToRad(botOnly ? 8 : 19)), Math.cos(THREE.MathUtils.degToRad(botOnly ? 8 : 19))) // ~19° above the tabletop (nearly level for the bot alone)
     const controls = new OrbitControls(camera, renderer.domElement)
     controls.target.copy(TARGET)
     controls.enablePan = false
@@ -782,10 +803,10 @@ export default function TabletBot3D({ mood = 'idle', speaking = false, busy = fa
       const h = mount.clientHeight || 1
       renderer.setSize(w, h, false)
       camera.aspect = w / h
-      // frame the whole table: its 12-unit top spans ~89% of the height (and never more than ~85% of the width)
+      // frame the subject: SPAN units fill FILL_H of the height (and never more than FILL_W of the width)
       const fov = THREE.MathUtils.degToRad(camera.fov)
-      const byH = 12 / 0.89 / 2 / Math.tan(fov / 2)
-      const byW = 12 / 0.85 / 2 / Math.tan(fov / 2) / camera.aspect
+      const byH = SPAN / FILL_H / 2 / Math.tan(fov / 2)
+      const byW = SPAN / FILL_W / 2 / Math.tan(fov / 2) / camera.aspect
       const d = Math.max(byH, byW)
       if (!fitDist) camera.position.copy(TARGET).addScaledVector(HOME_DIR, d)
       else camera.position.copy(TARGET).add(camera.position.clone().sub(TARGET).multiplyScalar(d / fitDist))
@@ -922,6 +943,7 @@ export default function TabletBot3D({ mood = 'idle', speaking = false, busy = fa
       f.side += ((p.bill ? 1 : 0) - f.side) * (1 - Math.exp(-dt / 0.18))
       if (!p.bill && f.side < 0.01) shownBill = null
       drawFace(p.eyeColor, shownBill)
+      if (screenOnly) return // the face canvas is on the page already; nothing to render in 3D
 
       if (homing) {
         homePos.copy(TARGET).addScaledVector(HOME_DIR, fitDist)
@@ -937,9 +959,10 @@ export default function TabletBot3D({ mood = 'idle', speaking = false, busy = fa
       cancelAnimationFrame(raf)
       ro.disconnect()
       renderer.domElement.removeEventListener('dblclick', goHome)
-      renderer.domElement.removeEventListener('pointerdown', onDown)
-      renderer.domElement.removeEventListener('pointerup', onUp)
-      renderer.domElement.removeEventListener('pointermove', onMove)
+      view.removeEventListener('pointerdown', onDown)
+      view.removeEventListener('pointerup', onUp)
+      view.removeEventListener('pointermove', onMove)
+      faceCanvas.remove()
       controls.dispose()
       const geos = new Set()
       const mats = new Set()
@@ -957,7 +980,7 @@ export default function TabletBot3D({ mood = 'idle', speaking = false, busy = fa
       renderer.dispose()
       renderer.domElement.remove()
     }
-  }, [])
+  }, [sceneKind])
 
   const submitEmail = (e) => {
     if (e.key === 'Escape') return e.currentTarget.blur()

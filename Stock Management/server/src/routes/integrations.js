@@ -13,6 +13,7 @@
 //   POST /api/integrations/print-test         -> queue a test page for the Bluetooth printer
 //   POST /api/integrations/print-receipt { bill_no }  -> queue a paper receipt for a placed bill
 //   GET  /api/integrations/print-jobs/:id     -> waiting | printing | printed | failed
+//   GET  /api/integrations/printer            -> { tab_online, connected, connecting, name }
 const crypto = require('crypto');
 const express = require('express');
 const rateLimit = require('express-rate-limit');
@@ -168,6 +169,7 @@ module.exports = function integrationRoutes(db) {
     const job = printJobs.add('bill', { bill_id: row.id });
     res.status(202).json({ ok: true, job_id: job.id, status: job.status, bill_no });
   });
+  router.get('/printer', (_req, res) => res.json({ ok: true, ...printJobs.printerStatus() }));
   router.get('/print-jobs/:id', (req, res) => {
     const job = printJobs.get(Number(req.params.id));
     if (!job) throw new HttpError(404, 'Print job not found');

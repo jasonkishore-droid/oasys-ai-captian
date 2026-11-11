@@ -14,6 +14,11 @@ const TX = '6e400003-b5a3-f393-e0a9-e50e24dcca9e'; // PrintOD notifies "OK" / "E
 const CHUNK = 100;
 const REPLY_TIMEOUT_MS = 20000;
 const AUTO_KEY = 'vasamo.printod.autoprint';
+// Once connected, the printer stays connected: if the link drops (out of range, PrintOD restarted,
+// the radio slept) it is reconnected by itself, retrying with a growing pause. Only pressing
+// Disconnect stops that, and the choice is remembered across reloads.
+const KEEP_KEY = 'vasamo.printod.keep';
+const RETRY_MS = [1000, 2000, 4000, 8000, 15000]; // then every 15 s
 
 let state = { status: 'disconnected', name: '', error: '', busy: false, autoPrint: readAuto() };
 let device = null;
@@ -21,6 +26,17 @@ let rx = null;
 let waiting = null; // { resolve, reject, timer } for the job in flight
 let queue = Promise.resolve();
 const listeners = new Set();
+let keep = readKeep(); // stay connected (false only after the user pressed Disconnect)
+let retryTimer = 0;
+let retries = 0;
+
+function readKeep() {
+  try { return localStorage.getItem(KEEP_KEY) !== 'false'; } catch { return true; }
+}
+function setKeep(on) {
+  keep = on;
+  try { localStorage.setItem(KEEP_KEY, String(on)); } catch { /* private mode */ }
+}
 
 function readAuto() {
   try { return localStorage.getItem(AUTO_KEY) !== 'false'; } catch { return true; }
@@ -61,7 +77,29 @@ function onReply(e) {
 function onDisconnected() {
   rx = null;
   if (waiting) { clearTimeout(waiting.timer); waiting.reject(new Error('Printer disconnected')); waiting = null; }
-  set({ status: 'disconnected', busy: false });
+  if (keep && device) {
+    set({ status: 'connecting', busy: false });
+    scheduleRetry();
+  } else {
+    set({ status: 'disconnected', busy: false });
+  }
+}
+
+// Try again after a pause; keeps going until it connects or the user presses Disconnect.
+function scheduleRetry() {
+  clearTimeout(retryTimer);
+  if (!keep || !device) return;
+  const wait = RETRY_MS[Math.min(retries, RETRY_MS.length - 1)];
+  retries += 1;
+  retryTimer = setTimeout(async () => {
+    if (!keep || !device || rx) return;
+    try {
+      await attach(device);
+    } catch {
+      set({ status: 'connecting' });
+      scheduleRetry();
+    }
+  }, wait);
 }
 
 async function attach(dev) {
@@ -76,7 +114,9 @@ async function attach(dev) {
   await tx.startNotifications();
   tx.removeEventListener('characteristicvaluechanged', onReply);
   tx.addEventListener('characteristicvaluechanged', onReply);
-  set({ status: 'connected', name: dev.name || 'PrintOD' });
+  clearTimeout(retryTimer);
+  retries = 0;
+  set({ status: 'connected', name: dev.name || 'PrintOD', error: '' });
 }
 
 /** Opens the browser's device picker (must be called from a click). Shows only devices running the PrintOD receiver. */
@@ -85,6 +125,7 @@ export async function connect() {
   if (why) { set({ error: why }); throw new Error(why); }
   try {
     const dev = await navigator.bluetooth.requestDevice({ filters: [{ services: [SERVICE] }] });
+    setKeep(true); // the user chose a printer: keep it connected from now on
     await attach(dev);
   } catch (e) {
     const msg = e.name === 'NotFoundError' ? 'No printer chosen. Is PrintOD open on the Receiver tab and started?' : e.message;
@@ -93,9 +134,10 @@ export async function connect() {
   }
 }
 
-/** Reconnects to the last chosen printer without the picker (if the browser remembers it). */
+/** Reconnects to the last chosen printer without the picker (if the browser remembers it).
+ *  Does nothing after the user pressed Disconnect, until they connect again. */
 export async function reconnect() {
-  if (rx || !supported()) return false;
+  if (rx || !supported() || !keep) return false;
   try {
     let dev = device;
     if (!dev && navigator.bluetooth.getDevices) {
@@ -106,14 +148,26 @@ export async function reconnect() {
     await attach(dev);
     return true;
   } catch {
-    set({ status: 'disconnected' });
+    // the printer is known but not answering yet (PrintOD not started, out of range): keep trying
+    if (keep && device) {
+      set({ status: 'connecting' });
+      scheduleRetry();
+    } else {
+      set({ status: 'disconnected' });
+    }
     return false;
   }
 }
 
+/** The user's Disconnect: the only thing that stops the printer from reconnecting by itself. */
 export function disconnect() {
-  device?.gatt?.disconnect();
-  device = null;
+  setKeep(false);
+  clearTimeout(retryTimer);
+  retries = 0;
+  const dev = device;
+  device = null; // before gatt.disconnect(), so onDisconnected does not start retrying
+  dev?.gatt?.disconnect();
+  rx = null;
   set({ status: 'disconnected', name: '' });
 }
 

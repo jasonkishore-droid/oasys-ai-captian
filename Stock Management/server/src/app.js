@@ -105,9 +105,14 @@ function createApp(db) {
   app.get('/api/print-queue/stream', (req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache, no-transform', Connection: 'keep-alive', 'X-Accel-Buffering': 'no' });
     res.write(': connected\n\n');
-    const leave = printJobs.subscribe((job) => res.write(`data: ${JSON.stringify(job)}\n\n`));
+    const tab = /^[a-z0-9]{6,40}$/.test(String(req.query.tab || '')) ? String(req.query.tab) : '';
+    const leave = printJobs.subscribe((job) => res.write(`data: ${JSON.stringify(job)}\n\n`), tab);
     const beat = setInterval(() => res.write(': ping\n\n'), 20000);
     req.on('close', () => { clearInterval(beat); leave(); });
+  });
+  // the tab's printer: connected | connecting | disconnected (shown on the AI Captain's screen)
+  app.post('/api/print-queue/status', (req, res) => {
+    res.json({ ok: printJobs.setPrinter(String(req.body?.tab || ''), req.body?.status, req.body?.name) });
   });
   app.post('/api/print-queue/:id/claim', (req, res) => res.json({ ok: printJobs.claim(Number(req.params.id)) }));
   app.post('/api/print-queue/:id/done', (req, res) => {

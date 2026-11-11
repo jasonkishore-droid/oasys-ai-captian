@@ -30,6 +30,12 @@ function labelColor(cls) {
 
 const BLOCKED = new Set(['denied', 'nocamera', 'error'])
 
+// Tablet-only view (#tablet): the page is just what is on the tablet's screen (Greeny's face and
+// the order cards), with no 3D scene and none of the controls. For a screen on the table itself;
+// open from the dock, leave with Escape.
+const TABLET_HASH = '#tablet'
+const isTabletOnly = () => window.location.hash === TABLET_HASH
+
 function statusText(status, target, fps, who, accel) {
   if (status.state !== 'tracking') return status.message
   if (!target) return 'Tracking · nothing detected'
@@ -52,6 +58,20 @@ export default function App() {
   const theme = useTheme(settings.theme)
   const [panelOpen, setPanelOpen] = useState(false)
   const gearRef = useRef(null)
+  const [tabletOnly, setTabletOnly] = useState(isTabletOnly)
+  useEffect(() => {
+    const onHash = () => setTabletOnly(isTabletOnly())
+    const onKey = (e) => {
+      if (e.key === 'Escape' && isTabletOnly()) history.replaceState(null, '', window.location.pathname + window.location.search), onHash()
+    }
+    window.addEventListener('hashchange', onHash)
+    window.addEventListener('keydown', onKey)
+    return () => {
+      window.removeEventListener('hashchange', onHash)
+      window.removeEventListener('keydown', onKey)
+    }
+  }, [])
+  const openTabletTab = () => window.open(window.location.pathname + window.location.search + TABLET_HASH, '_blank', 'noopener')
   const facesApi = useFaces()
   const { videoRef, target, status, fps, accel, retry, identity, identities, captureFace: capture, stream: camStream } = usePersonTracker(settings, facesApi.faces)
   // a soft white flash when a photo or a face sample is taken
@@ -448,7 +468,7 @@ export default function App() {
   return (
     <div
       ref={appRef}
-      className={`app${rear ? ' rear' : ''}`}
+      className={`app${rear ? ' rear' : ''}${tabletOnly ? ' tablet-only' : ''}`}
       style={{ '--face': faceColor, '--iris': eyeColor }}
     >
       {/* every stage of an order is drawn on the tablet's screen */}
@@ -464,8 +484,17 @@ export default function App() {
         eyeColor={eyeColor}
         faceColor={faceColor}
         theme={theme}
+        scene={tabletOnly ? 'screen' : 'table'}
       />
       {flash > 0 && <div key={flash} className="photo-flash" aria-hidden="true" />}
+
+      {/* tablet-only view: a single tap starts the voice chat (browsers need a gesture before audio plays) */}
+      {tabletOnly && (live.state === 'off' || live.state === 'error') && (
+        <button className="tablet-start" onClick={live.toggle} aria-label="Start voice chat">
+          <Icon name="mic" size={26} />
+          <span>Tap to talk to Greeny</span>
+        </button>
+      )}
 
       {asleep && (
         <div className="zzz" aria-hidden="true">
@@ -716,6 +745,9 @@ export default function App() {
           data-state={live.state === 'live' ? 'live' : live.state === 'connecting' ? 'wait' : live.state === 'error' ? 'bad' : undefined}
         >
           <Icon name="mic" />
+        </button>
+        <button className="icon-btn dock-btn" onClick={openTabletTab} aria-label="Open tablet-only view in a new tab" data-tip="Tablet-only view (new tab)">
+          <Icon name="tablet" />
         </button>
         <button
           ref={gearRef}

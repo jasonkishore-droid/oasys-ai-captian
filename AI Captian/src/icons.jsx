@@ -64,6 +64,12 @@ const PATHS = {
       <path d="M8.5 10.5v1M15.5 10.5v1M10 15h4" />
     </>
   ),
+  tablet: (
+    <>
+      <rect x="4" y="2" width="16" height="20" rx="2.5" />
+      <path d="M10.5 18.5h3" />
+    </>
+  ),
 }
 
 export default function Icon({ name, size = 18 }) {

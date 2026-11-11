@@ -26,12 +26,42 @@ function prune() {
   for (const [id, j] of jobs) if (j.at < cutoff) jobs.delete(id);
 }
 
+// Each open tab also says whether its printer is connected, so the AI Captain can show it.
+// Keyed by the tab's id; forgotten when that tab's stream closes.
+const printers = new Map(); // tab id -> { status, name }
+const streams = new Map(); // tab id -> number of open streams
+
 // A tab's stream: returns the function that ends the subscription.
-function subscribe(send) {
+function subscribe(send, tab) {
   tabs.add(send);
-  return () => tabs.delete(send);
+  if (tab) streams.set(tab, (streams.get(tab) || 0) + 1);
+  return () => {
+    tabs.delete(send);
+    if (!tab) return;
+    const n = (streams.get(tab) || 1) - 1;
+    if (n > 0) streams.set(tab, n);
+    else { streams.delete(tab); printers.delete(tab); }
+  };
 }
 const tabOnline = () => tabs.size > 0;
+
+const STATUSES = new Set(['connected', 'connecting', 'disconnected']);
+function setPrinter(tab, status, name) {
+  if (!tab || !streams.has(tab) || !STATUSES.has(status)) return false; // only tabs with an open stream
+  printers.set(tab, { status, name: String(name || '').slice(0, 60) });
+  return true;
+}
+// connected: some open tab has the printer connected; connecting: one is (re)connecting to it
+function printerStatus() {
+  const list = [...printers.values()];
+  const on = list.find((p) => p.status === 'connected');
+  return {
+    tab_online: tabOnline(),
+    connected: !!on,
+    connecting: !on && list.some((p) => p.status === 'connecting'),
+    name: on?.name || '',
+  };
+}
 
 // kind: 'test' (a test page) or 'bill' (a receipt, with data.bill_id)
 function add(kind, data = {}) {
@@ -67,4 +97,4 @@ function finish(id, ok, error) {
 
 const get = (id) => jobs.get(id) || null;
 
-module.exports = { add, claim, finish, get, subscribe, tabOnline };
+module.exports = { add, claim, finish, get, subscribe, tabOnline, setPrinter, printerStatus };

@@ -83,6 +83,7 @@ export const api = {
 
   printJobClaim: (id) => post(`/print-queue/${id}/claim`).then((r) => r.ok),
   printJobDone: (id, ok, error) => post(`/print-queue/${id}/done`, { ok, error }),
+  printerStatus: (tab, status, name) => post('/print-queue/status', { tab, status, name }),
 
   users: () => get('/users'),
   createUser: (data) => post('/users', data),

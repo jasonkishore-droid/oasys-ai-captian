@@ -1,0 +1,114 @@
+// Open tabs: a table's dining session, kept open while the guests eat.
+//
+// Each time the guests order (starters, then mains, then dessert, then tea) the items are added
+// to the session as a new round and go to the kitchen feed straight away. Nothing is billed or
+// taken out of stock until the tab is closed: then one bill is made for everything, in the
+// Stock Management database, and paid in one go.
+//
+// The tabs live in The Captain's own database (data/tabs.sqlite3), not the till's, so the
+// till's schema is untouched. A session is either open, closed (billed) or void (closed with
+// nothing on it).
+import { mkdirSync } from 'node:fs'
+import { dirname } from 'node:path'
+import { DatabaseSync } from 'node:sqlite'
+import { InventoryError } from './store.js'
+
+export function openTabs(file) {
+  mkdirSync(dirname(file), { recursive: true })
+  const db = new DatabaseSync(file)
+  db.exec('PRAGMA journal_mode = WAL')
+  db.exec('PRAGMA busy_timeout = 5000')
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS sessions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      table_no TEXT,
+      customer TEXT,
+      status TEXT NOT NULL DEFAULT 'open',           -- open | closed | void
+      opened_at TEXT NOT NULL,
+      closed_at TEXT,
+      payment_mode TEXT,
+      bill_id INTEGER,
+      bill_no TEXT
+    );
+    CREATE INDEX IF NOT EXISTS sessions_status ON sessions (status);
+    CREATE TABLE IF NOT EXISTS rounds (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      session_id INTEGER NOT NULL REFERENCES sessions (id),
+      round_no INTEGER NOT NULL,
+      items TEXT NOT NULL,                            -- JSON: [{ dish_id, name, diet, quantity, unit_price, line_total }]
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS rounds_session ON rounds (session_id);
+  `)
+  const get = (sql, ...p) => db.prepare(sql).get(...p) ?? null
+  const all = (sql, ...p) => db.prepare(sql).all(...p)
+  const run = (sql, ...p) => db.prepare(sql).run(...p)
+  const now = () => new Date().toISOString()
+
+  const roundsOf = (id) =>
+    all('SELECT id, round_no, items, created_at FROM rounds WHERE session_id = ? ORDER BY round_no', id).map((r) => ({
+      id: r.id, round_no: r.round_no, created_at: r.created_at, items: JSON.parse(r.items),
+    }))
+
+  function session(id) {
+    const s = get('SELECT * FROM sessions WHERE id = ?', Number(id) || 0)
+    return s ? { ...s, rounds: roundsOf(s.id) } : null
+  }
+
+  // the open session for a table, if any (a table has at most one open tab)
+  function openFor(tableNo) {
+    const s = tableNo ? get("SELECT id FROM sessions WHERE status = 'open' AND table_no = ? ORDER BY id DESC LIMIT 1", tableNo) : null
+    return s ? session(s.id) : null
+  }
+
+  function open({ table_no = null, customer = null } = {}) {
+    const existing = openFor(table_no)
+    if (existing) return existing
+    const { id } = get("INSERT INTO sessions (table_no, customer, status, opened_at) VALUES (?, ?, 'open', ?) RETURNING id", table_no, customer, now())
+    return session(id)
+  }
+
+  function addRound(id, items) {
+    const s = session(id)
+    if (!s) throw new InventoryError(404, 'Tab not found')
+    if (s.status !== 'open') throw new InventoryError(409, `This tab is already ${s.status === 'closed' ? 'closed and billed' : 'closed'}`)
+    const n = (s.rounds.at(-1)?.round_no || 0) + 1
+    run('INSERT INTO rounds (session_id, round_no, items, created_at) VALUES (?, ?, ?, ?)', s.id, n, JSON.stringify(items), now())
+    return session(s.id)
+  }
+
+  function close(id, { payment_mode, bill_id, bill_no }) {
+    run("UPDATE sessions SET status = 'closed', closed_at = ?, payment_mode = ?, bill_id = ?, bill_no = ? WHERE id = ? AND status = 'open'",
+      now(), payment_mode, bill_id, bill_no, id)
+    return session(id)
+  }
+
+  function voidSession(id) {
+    run("UPDATE sessions SET status = 'void', closed_at = ? WHERE id = ? AND status = 'open'", now(), id)
+    return session(id)
+  }
+
+  // dish quantities on every open tab: ordered and cooked, but not out of stock until the tab closes
+  function reserved() {
+    const out = new Map()
+    for (const r of all("SELECT r.items FROM rounds r JOIN sessions s ON s.id = r.session_id WHERE s.status = 'open'")) {
+      for (const i of JSON.parse(r.items)) out.set(i.dish_id, (out.get(i.dish_id) || 0) + i.quantity)
+    }
+    return out
+  }
+
+  // the kitchen feed: rounds after an id, with their table
+  function roundsSince(sinceId) {
+    const rows = all(
+      `SELECT r.id, r.session_id, r.round_no, r.items, r.created_at, s.table_no, s.customer FROM rounds r
+       JOIN sessions s ON s.id = r.session_id WHERE r.id > ? ORDER BY r.id LIMIT 50`,
+      sinceId
+    )
+    return {
+      rounds: rows.map((r) => ({ ...r, items: JSON.parse(r.items).map(({ dish_id, name, diet, quantity }) => ({ dish_id, name, diet, quantity })) })),
+      last_id: rows.length ? rows.at(-1).id : sinceId,
+    }
+  }
+
+  return { session, openFor, open, addRound, close, voidSession, reserved, roundsSince, shutdown: () => db.close() }
+}

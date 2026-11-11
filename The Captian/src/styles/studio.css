@@ -1,0 +1,269 @@
+/* The Studio avatar: a matte ceramic head with a black glass screen. The body
+   colour comes from --face, the glow of the eyes and mouth from --iris. */
+
+.app.studio {
+  --glow: color-mix(in oklch, var(--iris) 72%, #ffffff);
+  --grain: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .17 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  --mottle: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='400' height='400'><filter id='m'><feTurbulence type='fractalNoise' baseFrequency='.018' numOctaves='3' seed='4' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .32 0'/></filter><rect width='100%' height='100%' filter='url(%23m)'/></svg>");
+}
+
+/* a very soft pool of light behind the head */
+.app.studio::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(55% 55% at 50% 46%, color-mix(in srgb, var(--face) 14%, transparent), transparent 72%);
+  pointer-events: none;
+}
+
+.studio .head {
+  transform-origin: 50% 50%;
+  transform: perspective(2600px) translateY(calc(var(--breath) * 3px)) rotateY(calc(var(--yaw) * 7deg))
+    rotateX(calc(var(--pitch) * -4deg));
+  will-change: transform;
+}
+
+/* the contact shadow on the floor */
+.studio-floor {
+  position: absolute;
+  left: 50%;
+  top: calc(50% + 330px * var(--s));
+  width: calc(620px * var(--s));
+  height: calc(70px * var(--s));
+  transform: translateX(-50%);
+  background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.6), transparent 70%);
+  filter: blur(8px);
+  pointer-events: none;
+}
+
+.studio-head {
+  position: absolute;
+  inset: 0;
+}
+
+.studio-shell {
+  position: absolute;
+  left: 50%;
+  top: calc(50% - 330px * var(--s));
+  width: calc(860px * var(--s));
+  height: calc(660px * var(--s));
+  transform: translateX(-50%);
+  border-radius: calc(300px * var(--s));
+  background:
+    radial-gradient(90% 70% at 26% 6%, rgba(255, 255, 255, 0.55), transparent 62%),
+    linear-gradient(180deg,
+      color-mix(in srgb, var(--face) 50%, white) 0%,
+      color-mix(in srgb, var(--face) 76%, white) 38%,
+      var(--face) 68%,
+      color-mix(in srgb, var(--face) 82%, black) 100%);
+  box-shadow:
+    /* edge light: bright on the top and left, shaded on the right and bottom */
+    inset 0 calc(3px * var(--s)) calc(2px * var(--s)) rgba(255, 255, 255, 0.85),
+    inset calc(8px * var(--s)) 0 calc(14px * var(--s)) calc(-8px * var(--s)) rgba(255, 255, 255, 0.4),
+    inset calc(-10px * var(--s)) 0 calc(16px * var(--s)) calc(-8px * var(--s)) rgba(0, 0, 0, 0.2),
+    inset 0 calc(-8px * var(--s)) calc(10px * var(--s)) rgba(0, 0, 0, 0.22),
+    inset 0 calc(-70px * var(--s)) calc(90px * var(--s)) rgba(0, 0, 0, 0.14),
+    0 0 0 1px rgba(0, 0, 0, 0.32),
+    /* thickness: the slab's lower edge, then its shadow on the floor */
+    0 calc(6px * var(--s)) 0 color-mix(in srgb, var(--face) 58%, black),
+    0 calc(12px * var(--s)) 0 color-mix(in srgb, var(--face) 40%, black),
+    0 calc(17px * var(--s)) calc(3px * var(--s)) rgba(0, 0, 0, 0.5),
+    0 calc(70px * var(--s)) calc(90px * var(--s)) calc(-30px * var(--s)) rgba(0, 0, 0, 0.78);
+}
+
+/* soft sheen sweeping across the ceramic, like a window reflected in it */
+.studio-shell::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background:
+    linear-gradient(106deg, transparent 30%, rgba(255, 255, 255, 0.2) 41%, rgba(255, 255, 255, 0.05) 50%, transparent 58%),
+    radial-gradient(60% 40% at 78% 4%, rgba(255, 255, 255, 0.22), transparent 70%);
+  pointer-events: none;
+}
+
+/* a fine matte grain over the ceramic */
+.studio-shell::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--grain), var(--mottle);
+  mix-blend-mode: multiply;
+  opacity: 0.38;
+  pointer-events: none;
+}
+
+/* the screen is sunk into the shell: a dark gap, a chamfer, and a lit lower lip */
+.studio-screen {
+  position: absolute;
+  z-index: 1;
+  inset: 9% 5% 11%;
+  overflow: hidden;
+  border-radius: calc(230px * var(--s));
+  background: #030303;
+  box-shadow:
+    0 0 0 calc(3px * var(--s)) rgba(0, 0, 0, 0.7),
+    0 0 0 calc(9px * var(--s)) color-mix(in srgb, var(--face) 64%, black),
+    0 0 0 calc(11px * var(--s)) color-mix(in srgb, var(--face) 78%, black),
+    0 calc(3px * var(--s)) 0 calc(11px * var(--s)) rgba(255, 255, 255, 0.45),
+    0 0 calc(36px * var(--s)) calc(14px * var(--s)) rgba(0, 0, 0, 0.16),
+    inset 0 calc(16px * var(--s)) calc(34px * var(--s)) rgba(0, 0, 0, 0.9),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.09),
+    inset 0 0 90px rgba(255, 255, 255, 0.03);
+}
+
+/* reflections on the glass: a sky band, two streaks and a darker rim */
+.studio-screen::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background:
+    linear-gradient(118deg, rgba(255, 255, 255, 0.16) 0%, rgba(255, 255, 255, 0.05) 22%, transparent 40%),
+    linear-gradient(118deg, transparent 50%, rgba(255, 255, 255, 0.06) 55%, transparent 61%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.09), transparent 30%),
+    radial-gradient(120% 100% at 50% 42%, transparent 56%, rgba(0, 0, 0, 0.5));
+  pointer-events: none;
+}
+
+.studio-screen svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+/* the face drifts a little across the glass as the head turns */
+.studio-face {
+  transform: translate(calc(var(--yaw) * 30px), calc(var(--pitch) * 16px));
+}
+
+
+/* the glow is cast by the finished (masked) eye, so it follows blinks and smiles */
+.studio-eye {
+  filter: drop-shadow(0 0 5px color-mix(in srgb, var(--glow) 75%, transparent)) drop-shadow(0 0 26px color-mix(in srgb, var(--glow) 45%, transparent)) saturate(1.2);
+}
+
+.studio-line {
+  fill: var(--glow);
+  stroke: var(--glow);
+  stroke-width: 7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  fill-opacity: 0;
+  filter: drop-shadow(0 0 4px color-mix(in srgb, var(--glow) 70%, transparent)) drop-shadow(0 0 18px color-mix(in srgb, var(--glow) 40%, transparent));
+}
+
+.studio .zzz {
+  top: calc(50% - 330px * var(--s));
+  left: 66%;
+}
+
+
+/* ---- The Captain: the Studio version ---- */
+.app.studio .head {
+  position: absolute;
+  inset: 0;
+}
+.app.studio.tablet-only {
+  background: var(--bg, #0b0b0c);
+}
+.app.studio.tablet-only::before {
+  display: block;
+}
+/* the order popup sits under the head, over the floor */
+.app.studio .popups .order-note {
+  max-width: min(380px, calc(100vw - 32px));
+}
+
+/* ---- an order on the Studio version: the card slides in on the left and the head
+   glides right (and a little smaller) to make room; both go back when it closes ---- */
+.app.studio {
+  --order-w: min(400px, 42vw);
+  --order-gap: max(16px, 3vw);
+}
+.app.studio .head,
+.app.studio .studio-floor {
+  transition: translate 600ms var(--ease, cubic-bezier(0.2, 0.7, 0.2, 1)), scale 600ms var(--ease, cubic-bezier(0.2, 0.7, 0.2, 1));
+}
+.app.studio.order-open .head,
+.app.studio.order-open .studio-floor {
+  translate: calc((var(--order-w) + var(--order-gap)) / 2) 0;
+  scale: 0.84;
+}
+
+.studio-order {
+  position: fixed;
+  z-index: 25;
+  left: var(--order-gap);
+  top: 50%;
+  width: var(--order-w);
+  translate: 0 -50%;
+  animation: studio-order-in 520ms var(--ease, cubic-bezier(0.2, 0.7, 0.2, 1)) both;
+}
+.studio-order.leaving {
+  animation: studio-order-out 380ms ease-in both;
+}
+.studio-order .note {
+  display: grid;
+  gap: 4px;
+  padding: 22px;
+  border-radius: 22px;
+  text-align: center;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.55);
+}
+.studio-order .note strong {
+  font-size: 17px;
+}
+.studio-order .note p {
+  margin: 0 0 10px;
+}
+
+@keyframes studio-order-in {
+  from {
+    opacity: 0;
+    transform: translateX(calc(-100% - var(--order-gap))) scale(0.96);
+  }
+}
+@keyframes studio-order-out {
+  to {
+    opacity: 0;
+    transform: translateX(calc(-60% - var(--order-gap))) scale(0.96);
+  }
+}
+
+/* a phone held upright has no room beside the head: the card rises from the bottom instead */
+@media (max-width: 720px) {
+  .app.studio.order-open .head,
+  .app.studio.order-open .studio-floor {
+    translate: 0 -18vh;
+    scale: 0.7;
+  }
+  .studio-order {
+    left: 16px;
+    right: 16px;
+    top: auto;
+    bottom: max(16px, env(safe-area-inset-bottom));
+    width: auto;
+    translate: none;
+  }
+  @keyframes studio-order-in {
+    from {
+      opacity: 0;
+      transform: translateY(40px);
+    }
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .app.studio .head,
+  .app.studio .studio-floor {
+    transition: none;
+  }
+  .studio-order,
+  .studio-order.leaving {
+    animation-duration: 1ms;
+  }
+}

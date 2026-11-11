@@ -52,6 +52,73 @@
   pointer-events: none;
 }
 
+/* screen-only view: the tablet's screen is the page, letterboxed to its 1.45:1 */
+.tablet-stage canvas.tablet-screen {
+  object-fit: contain;
+  cursor: default;
+  background: #000;
+}
+
+/* tablet-only view (#tablet): nothing on the page but Greeny's screen. Orders, receipts
+   and the people cards still appear (on the screen or as popups). */
+.app.tablet-only {
+  background: #000;
+}
+
+.app.tablet-only::before {
+  display: none;
+}
+
+.app.tablet-only .stack,
+.app.tablet-only .dock,
+.app.tablet-only .transcript,
+.app.tablet-only .camera-card,
+.app.tablet-only .camera-fab,
+.app.tablet-only .preview {
+  display: none !important;
+}
+
+/* one tap starts the voice chat; it disappears once connected */
+.tablet-start {
+  position: fixed;
+  left: 50%;
+  bottom: max(28px, env(safe-area-inset-bottom));
+  z-index: 6;
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 24px 14px 20px;
+  border: 1px solid color-mix(in srgb, var(--face) 55%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--face) 18%, rgba(0, 0, 0, 0.55));
+  color: #fff;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  transform: translateX(-50%);
+  box-shadow: 0 10px 34px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(14px) saturate(1.4);
+  cursor: pointer;
+  animation: tablet-start-pulse 2.4s ease-in-out infinite;
+}
+
+.tablet-start:hover,
+.tablet-start:focus-visible {
+  background: color-mix(in srgb, var(--face) 32%, rgba(0, 0, 0, 0.55));
+  outline: none;
+}
+
+@keyframes tablet-start-pulse {
+  0%,
+  100% {
+    box-shadow: 0 10px 34px rgba(0, 0, 0, 0.45), 0 0 0 0 color-mix(in srgb, var(--face) 45%, transparent);
+  }
+  50% {
+    box-shadow: 0 10px 34px rgba(0, 0, 0, 0.45), 0 0 0 14px transparent;
+  }
+}
+
 /* asleep: a few z's float up beside the tablet */
 .zzz {
   position: fixed;

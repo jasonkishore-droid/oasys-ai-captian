@@ -7,6 +7,13 @@ import { api } from './api';
 // paper receipt a guest asks it for. The server offers each job to every open tab over a live
 // stream (a stream, not polling: browsers slow timers down in background tabs). The tab whose
 // printer is connected claims the job, prints it and reports back; other tabs leave it alone.
+// This tab's id, so the server can tell the AI Captain whether this tab's printer is connected.
+const TAB = Math.random().toString(36).slice(2, 14).padEnd(8, '0');
+const reportPrinter = () => {
+  const s = printer.getState();
+  api.printerStatus(TAB, s.status, s.name).catch(() => {});
+};
+
 function usePrintJobs(settings, toast) {
   useEffect(() => {
     let queue = Promise.resolve(); // one job at a time, in the order they arrived
@@ -25,7 +32,8 @@ function usePrintJobs(settings, toast) {
       } catch (e) { error = e.message; toast(`${what} did not print: ${e.message}`, 'error'); }
       await api.printJobDone(job.id, !error, error).catch(() => {});
     };
-    const stream = new EventSource('/api/print-queue/stream'); // reconnects by itself if the server restarts
+    const stream = new EventSource(`/api/print-queue/stream?tab=${TAB}`); // reconnects by itself if the server restarts
+    stream.onopen = reportPrinter; // (re)opened: tell the server where the printer stands
     stream.onmessage = (e) => {
       let job;
       try { job = JSON.parse(e.data); } catch { return; }
@@ -45,6 +53,7 @@ export default function PrinterControl() {
   const toast = useToast();
   useEffect(() => { printer.reconnect(); }, []); // silently reattach to the last printer if the browser allows it
   usePrintJobs(settings, toast);
+  useEffect(reportPrinter, [p.status, p.name]); // and every time that changes
   return (
     <>
       <button className={`printer-chip ${p.status}`} onClick={() => setOpen(true)} title={p.status === 'connected' ? `${p.name} · PrintOD` : 'Connect the PrintOD Bluetooth printer'}>

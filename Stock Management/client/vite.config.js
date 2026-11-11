@@ -7,7 +7,8 @@ export default defineConfig({
   server: {
     port: 5190,
     strictPort: true,
-    proxy: { '/api': 'http://127.0.0.1:4020' },
+    // changeOrigin: false keeps the browser's Host header, which the API's same-origin check compares with Origin
+    proxy: { '/api': { target: 'http://127.0.0.1:4020', changeOrigin: false } },
     fs: { allow: [fileURLToPath(new URL('..', import.meta.url))] }, // ../shared/billing.mjs
   },
   build: { sourcemap: true },

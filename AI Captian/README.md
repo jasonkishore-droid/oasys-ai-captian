@@ -14,7 +14,7 @@ backend.
 ```bash
 npm install
 npm run dev:lan  # https://localhost:5444 and https://<this PC's IP>:5444 (self-signed: accept the warning once per device)
-npm run dev      # http://localhost:5173 (this machine only)
+npm run dev      # http://localhost:5174 (this machine only)
 npm run build    # production build in dist/
 npm run preview  # serve the production build
 ```

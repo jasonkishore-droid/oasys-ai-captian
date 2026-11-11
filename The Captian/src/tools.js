@@ -462,8 +462,13 @@ export function createToolRunner(ctx) {
     async place_order({ items, table, guest_name, guest_email, replace } = {}) {
       if (!ctx.current.oasysConnected()) return OASYS_OFF
       const wanted = (Array.isArray(items) ? items : [])
-        .map((i) => ({ name: String(i?.name || '').trim(), quantity: Math.max(1, Math.floor(Number(i?.quantity) || 1)) }))
-        .filter((i) => i.name)
+        .map((i) => ({
+          // dishes tapped on the menu card carry their id, so there is no guessing from the name
+          ...(Number.isInteger(i?.dish_id) && i.dish_id > 0 && { dish_id: i.dish_id }),
+          name: String(i?.name || '').trim(),
+          quantity: Math.max(1, Math.floor(Number(i?.quantity) || 1)),
+        }))
+        .filter((i) => i.name || i.dish_id)
       if (!wanted.length) return { ok: false, error: 'What would they like to order?' }
       // a round already waiting for the guest's yes keeps its dishes: these are added to it
       // (unless the guest wants to start the round over), so browsing the menu loses nothing

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { changeTray, findSection, MAX_PER_DISH, trayTotals } from './MenuCarousel.jsx'
+import { changeTray, findSection, MAX_PER_DISH, trayTotals, noteTray } from './MenuCarousel.jsx'
 
 describe('the order tray', () => {
   const idli = { id: 1, name: 'Idli (2 pcs)', price: 50 }
@@ -42,5 +42,21 @@ describe('findSection', () => {
   it('says when nothing matches', () => {
     expect(findSection(sections, 'pizza')).toBe(-1)
     expect(findSection(sections, '')).toBe(-1)
+  })
+})
+
+describe('noteTray', () => {
+  const dosa = { id: 1, name: 'Masala Dosa', price: 90 }
+  const coffee = { id: 2, name: 'Filter Coffee', price: 30 }
+  it('sets, keeps and removes a dish\'s special request', () => {
+    let t = changeTray(changeTray([], dosa, 1), coffee, 1)
+    t = noteTray(t, 1, '  less   oil ')
+    expect(t[0].note).toBe('less oil')
+    expect(t[1].note).toBeUndefined()
+    // more of the dish keeps its request
+    t = changeTray(t, dosa, 1)
+    expect(t[0]).toMatchObject({ quantity: 2, note: 'less oil' })
+    expect(noteTray(t, 1, 'x'.repeat(150))[0].note).toHaveLength(100)
+    expect(noteTray(t, 1, '   ')[0].note).toBeUndefined()
   })
 })

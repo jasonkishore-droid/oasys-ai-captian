@@ -589,17 +589,37 @@ export default function TabletBot3D({ mood = 'idle', speaking = false, busy = fa
       const close = { label: 'Dismiss', run: () => p.onClose?.(), act: false }
       const red = '#ff8a84'
 
-      // the item lines (up to `room`), then subtotal / tax and the total
-      const itemsAndTotals = (room = 5, totalLabel = 'Total') => {
+      // the item lines, each with its special request for the kitchen ("↳ less oil") under it, then the
+      // round's request; `room` rows at most, the rest summed up as "+ n more"
+      const itemRows = (room, prices) => {
         const lines = order.lines || []
-        for (const l of lines.slice(0, lines.length > room ? room - 1 : room)) {
-          line(`${l.quantity} × ${l.name}`, rupees(l.line_total))
+        const rows = lines.reduce((n, l) => n + (l.note ? 2 : 1), 0) + (order.kitchen_note ? 1 : 0)
+        const fits = rows <= room
+        let used = 0
+        let shown = 0
+        for (const l of lines) {
+          const need = l.note ? 2 : 1
+          if (!fits && used + need > room - 1) break
+          line(`${l.quantity} × ${l.name}`, prices ? rupees(l.line_total) : '')
           y += 20
+          if (l.note) {
+            line(`   ↳ ${l.note}`, '', { size: 12, alpha: 0.6 })
+            y += 18
+          }
+          used += need
+          shown++
         }
-        if (lines.length > room) {
-          line(`+ ${lines.length - room + 1} more`, '', { alpha: 0.6 })
+        if (shown < lines.length) {
+          line(`+ ${lines.length - shown} more`, '', { alpha: 0.6 })
           y += 20
+        } else if (order.kitchen_note && (fits || used < room - 1)) {
+          line(`Kitchen note: ${order.kitchen_note}`, '', { size: 12, alpha: 0.6 })
+          y += 18
         }
+      }
+      // the item lines (up to `room` rows), then subtotal / tax and the total
+      const itemsAndTotals = (room = 5, totalLabel = 'Total') => {
+        itemRows(room, true)
         if (order.tax > 0 || order.service_charge > 0) {
           y += 10
           rule(true)
@@ -632,15 +652,7 @@ export default function TabletBot3D({ mood = 'idle', speaking = false, busy = fa
         y += 24
         line(`Round ${order.round || 1}${where}`, '', { alpha: 0.65 })
         y += 26
-        const lines = order.lines || []
-        for (const l of lines.slice(0, lines.length > 4 ? 3 : 4)) {
-          line(`${l.quantity} × ${l.name}`, '')
-          y += 20
-        }
-        if (lines.length > 4) {
-          line(`+ ${lines.length - 3} more`, '', { alpha: 0.6 })
-          y += 20
-        }
+        itemRows(4, false)
         y += 12
         rule(false)
         line('Tab so far', rupees(order.tab_total), { size: 15, weight: 700, alpha: 1 })

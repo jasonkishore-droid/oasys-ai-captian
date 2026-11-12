@@ -415,9 +415,19 @@ export const TOOL_DECLARATIONS = [
             properties: {
               name: { type: 'STRING', description: 'The item as the guest said it, e.g. "masala dosa", "filter coffee".' },
               quantity: { type: 'INTEGER', description: 'How many (default 1).' },
+              note: {
+                type: 'STRING',
+                description:
+                  'Optional special request for the kitchen for this dish, in a few words, e.g. "less oil", "no onion", "extra spicy", "sugar on the side". ' +
+                  'Only what the guest asked for. If only some of them get it ("two dosas, one without onion"), list the dish twice: 1 with the note, 1 without.',
+              },
             },
             required: ['name'],
           },
+        },
+        kitchen_note: {
+          type: 'STRING',
+          description: 'Optional special request for the whole round, not one dish, e.g. "serve the starters first", "make everything mild".',
         },
         table: { type: 'STRING', description: 'Table number, only if the guest said it (the app usually knows its own table).' },
         replace: { type: 'BOOLEAN', description: 'True to throw away the round waiting for a yes and use only these items. Default false: add to it.' },
@@ -425,6 +435,24 @@ export const TOOL_DECLARATIONS = [
         guest_email: { type: 'STRING', description: 'Only if the guest already said an email address; it is suggested for the e-receipt when the tab is paid, never sent automatically.' },
       },
       required: ['items'],
+    },
+  },
+  {
+    name: 'add_special_request',
+    description:
+      'Add a special request for the kitchen ("less oil", "no onion", "not too spicy", "serve the starters first") to the round ' +
+      'waiting for the guest\'s yes, when they ask for it after place_order and before confirm_order. ' +
+      'Give item for a request about one dish; leave item out for a request about the whole round. ' +
+      'It does not change the price. It cannot change a round that has already gone to the kitchen. ' +
+      'When the guest asks for something while ordering, pass it as the item\'s note in place_order instead.',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        request: { type: 'STRING', description: 'The request in a few words, e.g. "less oil", "no onion", "extra spicy".' },
+        item: { type: 'STRING', description: 'Optional: the dish it is for, as in the round, e.g. "masala dosa". Leave out for the whole round.' },
+        quantity: { type: 'INTEGER', description: 'Optional: how many of that dish get it, when only some do ("one of the two dosas"). Default: all of them.' },
+      },
+      required: ['request'],
     },
   },
   {

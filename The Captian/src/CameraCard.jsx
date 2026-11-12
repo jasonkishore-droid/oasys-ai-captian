@@ -31,14 +31,8 @@ export default function CameraCard({ stream, mirror, who, faceSeen, people = [],
   // the card sits in the bottom-right corner, so it grows from its top-left
   // grip; null means the default CSS size. The chosen width is remembered.
   const [width, setWidth] = useState(savedWidth)
-  // folded down to a round camera button in the corner; remembered too
-  const [collapsed, setCollapsedState] = useState(() => {
-    try {
-      return localStorage.getItem(COLLAPSED_KEY) === '1'
-    } catch {
-      return false
-    }
-  })
+  // folded down to a round camera button in the corner; always starts folded
+  const [collapsed, setCollapsedState] = useState(true)
   const setCollapsed = (v) => {
     setCollapsedState(v)
     try {

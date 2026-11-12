@@ -295,11 +295,13 @@ export default function App() {
   // Dishes tapped on the menu card: checked and priced like a spoken order, and shown on the order card
   // for the guest's Confirm. If Greeny is listening, it is told so it can carry on from there.
   const orderFromMenu = useCallback(
-    async (items) => {
-      const r = await runTool('place_order', { items, replace: true })
+    async (items, kitchenNote) => {
+      // items may carry a special request each ({ note: 'less oil' }); kitchenNote is for the whole round
+      const r = await runTool('place_order', { items, replace: true, ...(kitchenNote && { kitchen_note: kitchenNote }) })
       if (r.ok) {
         live.say(
           `[App] The guest ordered by hand on the menu card: ${(r.order || []).join('; ')}. ` +
+            (r.kitchen_note ? `Note for the kitchen: ${r.kitchen_note}. ` : '') +
             'The order card is showing it with Confirm and Cancel buttons. Do NOT call place_order for this. ' +
             'In one short sentence, ask them to check it and tap Confirm, or say yes to send it to the kitchen (then call confirm_order).'
         )
@@ -873,6 +875,7 @@ export default function App() {
           }}
           here={names.includes(profileName) || heardUnseen === profileName}
           accent={settings.faceColor}
+          theme={theme}
           onClose={() => setProfileName(null)}
         />
       )}

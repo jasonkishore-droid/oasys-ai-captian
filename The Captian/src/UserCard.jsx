@@ -4,7 +4,7 @@ import { initialTile } from './UsersPanel.jsx'
 
 // One person's card, popped up in front of everything. Opened by the show_user
 // voice tool ("show me Sam"); closed with the button, Escape, or a click outside.
-export default function UserCard({ person, here, accent, onClose }) {
+export default function UserCard({ person, here, accent, theme = 'light', onClose }) {
   useEffect(() => {
     const on = (e) => e.key === 'Escape' && onClose()
     window.addEventListener('keydown', on)
@@ -32,7 +32,7 @@ export default function UserCard({ person, here, accent, onClose }) {
           parallax={8}
           radius={18}
           intro
-          theme="dark"
+          theme={theme}
         />
       </div>
     </div>

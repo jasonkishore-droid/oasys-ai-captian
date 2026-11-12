@@ -53,6 +53,9 @@ const oneOf = (v, list, def, field) => {
   return v
 }
 
+export const NOTE_MAX = 100
+export const KITCHEN_NOTE_MAX = 200
+
 const sourceOf = (v) => {
   const source = v === undefined || v === null ? 'ai-captain' : String(v)
   if (!/^[a-z0-9-]{2,20}$/.test(source)) bad('source: 2-20 lowercase letters, digits or dashes')
@@ -68,7 +71,8 @@ export function parseOrder(b = {}) {
     if (dishId !== null && !(Number.isInteger(dishId) && dishId > 0)) bad(`items.${i}.dish_id: must be a positive whole number`)
     const quantity = r?.quantity === undefined || r?.quantity === null ? 1 : Number(r.quantity)
     if (!(Number.isInteger(quantity) && quantity >= 1 && quantity <= 50)) bad(`items.${i}.quantity: must be 1 to 50`)
-    return { name, dish_id: dishId, quantity }
+    // a special request for the kitchen, e.g. "less oil", "no onion": printed on the ticket, never billed
+    return { name, dish_id: dishId, quantity, note: text(r?.note, NOTE_MAX, `items.${i}.note`) }
   })
   const phone = text(b.customer_phone, 20, 'customer_phone')
   if (phone && !/^[+\d\s-]*$/.test(phone)) bad('customer_phone: digits only')
@@ -83,6 +87,8 @@ export function parseOrder(b = {}) {
     customer_email: email,
     order_type: oneOf(b.order_type, ['dine_in', 'takeaway', 'delivery'], 'dine_in', 'order_type'),
     payment_mode: oneOf(b.payment_mode, ['cash', 'upi', 'card'], 'cash', 'payment_mode'),
+    // a request for the whole round, e.g. "serve the starters first", "make everything mild"
+    kitchen_note: text(b.kitchen_note, KITCHEN_NOTE_MAX, 'kitchen_note'),
     dry_run: b.dry_run === true,
     source,
   }
@@ -104,10 +110,10 @@ export function inventoryApi(store, config, tabs = null) {
   const ok = (body, status = 200) => ({ status, body })
 
   const needTabs = () => tabs || bad('Tabs are not available')
-  // every round's lines, added up per dish
+  // every round's lines, added up per dish (the bill's view: special requests are dropped)
   const merge = (rounds) => {
     const m = new Map()
-    for (const r of rounds) for (const l of r.items) {
+    for (const r of rounds) for (const { note, ...l } of r.items) {
       const cur = m.get(l.dish_id)
       if (cur) {
         cur.quantity += l.quantity
@@ -131,7 +137,9 @@ export function inventoryApi(store, config, tabs = null) {
     const b = parseOrder(body)
     const dishes = orderable()
     const byId = new Map(dishes.map((d) => [d.id, d]))
+    // one line per dish and special request: "2 masala dosa" and "1 masala dosa, no onion" stay apart on the ticket
     const merged = new Map()
+    const perDish = new Map() // stock is checked per dish, whatever the requests
     const problems = []
     for (const r of b.items) {
       const m = r.dish_id ? (byId.has(r.dish_id) ? { status: 'ok', dish: byId.get(r.dish_id) } : { status: 'not_found' }) : match(r.name, dishes)
@@ -143,18 +151,28 @@ export function inventoryApi(store, config, tabs = null) {
         problems.push({ requested: r.name, problem: 'ambiguous', options: m.options })
         continue
       }
-      merged.set(m.dish.id, { dish: m.dish, quantity: (merged.get(m.dish.id)?.quantity || 0) + r.quantity })
+      const key = `${m.dish.id}|${(r.note || '').toLowerCase()}`
+      const cur = merged.get(key) // the same request in other words' case: keep it as first said
+      merged.set(key, { dish: m.dish, note: cur ? cur.note : r.note, quantity: (cur?.quantity || 0) + r.quantity })
+      perDish.set(m.dish.id, { dish: m.dish, quantity: (perDish.get(m.dish.id)?.quantity || 0) + r.quantity })
     }
-    const lines = []
-    for (const { dish, quantity } of merged.values()) {
+    const short = new Set()
+    for (const { dish, quantity } of perDish.values()) {
       if (!config.billing.allowNegativeStock && dish.portions !== null && quantity > dish.portions) {
         problems.push({ requested: dish.name, problem: dish.portions === 0 ? 'sold_out' : 'not_enough_stock', portions_left: dish.portions })
-      } else {
-        lines.push({ dish_id: dish.id, name: dish.name, diet: dish.diet, quantity, unit_price: dish.price, line_total: round2(quantity * dish.price) })
+        short.add(dish.id)
       }
     }
+    const lines = []
+    for (const { dish, note, quantity } of merged.values()) {
+      if (short.has(dish.id)) continue
+      lines.push({
+        dish_id: dish.id, name: dish.name, diet: dish.diet, quantity, unit_price: dish.price, line_total: round2(quantity * dish.price),
+        ...(note && { note }),
+      })
+    }
     const totals = computeTotals(lines.map((l) => l.line_total), { service_rate: config.billing.serviceRate, tax_rate: config.billing.taxRate })
-    const extra = { ...totals, tax_rate: config.billing.taxRate, currency: 'INR' }
+    const extra = { ...totals, tax_rate: config.billing.taxRate, currency: 'INR', ...(b.kitchen_note && { kitchen_note: b.kitchen_note }) }
     if (problems.length || !lines.length) return ok({ ok: false, problems, lines, ...extra }, 422)
     return { b, lines, extra }
   }
@@ -181,7 +199,8 @@ export function inventoryApi(store, config, tabs = null) {
       if (b.dry_run) return ok({ ok: true, dry_run: true, lines, ...extra, next_bill_no: store.peekNextBillNo() })
       const id = store.createBill(
         {
-          items: lines.map((l) => ({ dish_id: l.dish_id, quantity: l.quantity })),
+          // the bill has one line per dish; special requests are for the kitchen only
+          items: merge([{ items: lines }]).map((l) => ({ dish_id: l.dish_id, quantity: l.quantity })),
           table_no: b.table_no, customer: b.customer, customer_phone: b.customer_phone, customer_email: b.customer_email,
           order_type: b.order_type, payment_mode: b.payment_mode,
         },
@@ -205,7 +224,7 @@ export function inventoryApi(store, config, tabs = null) {
       const { b, lines } = q
       let s = body.session_id ? t.session(body.session_id) : null
       if (!s || s.status !== 'open') s = t.open({ table_no: b.table_no, customer: b.customer })
-      s = t.addRound(s.id, lines)
+      s = t.addRound(s.id, lines, b.kitchen_note)
       return ok({ ok: true, round_no: s.rounds.at(-1).round_no, tab: tabView(s) }, 201)
     },
 

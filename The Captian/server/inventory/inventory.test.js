@@ -43,6 +43,14 @@ describe('parseOrder', () => {
     expect(() => parseOrder({ items: [{ name: 'x' }], payment_mode: 'cheque' })).toThrow(/payment_mode/)
     expect(() => parseOrder({ items: [{ name: 'x' }], customer_email: 'nope' })).toThrow(/customer_email/)
   })
+  it('keeps special requests for the kitchen', () => {
+    const o = parseOrder({ items: [{ name: 'Masala Dosa', note: '  less oil ' }, { name: 'Idli', note: '' }], kitchen_note: 'starters first' })
+    expect(o.items[0].note).toBe('less oil')
+    expect(o.items[1].note).toBeNull()
+    expect(o.kitchen_note).toBe('starters first')
+    expect(() => parseOrder({ items: [{ name: 'x', note: 'y'.repeat(101) }] })).toThrow(/items\.0\.note/)
+    expect(() => parseOrder({ items: [{ name: 'x' }], kitchen_note: 'y'.repeat(201) })).toThrow(/kitchen_note/)
+  })
 })
 
 describe.skipIf(!haveDb)('against a copy of the Stock Management database', () => {
@@ -148,6 +156,43 @@ describe.skipIf(!haveDb)('against a copy of the Stock Management database', () =
     // ordering again after paying starts a new session for the table
     expect(api.tabAdd({ session_id: id, table_no: 'T7', items: [{ dish_id: a.id }] }).body.tab.session_id).not.toBe(id)
     db.close()
+  })
+
+  it('puts special requests on the kitchen ticket, not on the bill', () => {
+    const dish = store.listDishes().find((d) => d.available && (d.portions === null || d.portions >= 3))
+    if (!dish) return
+    // "two of these, one with less oil", and a request for the whole round
+    const quote = api.placeOrder({
+      items: [{ dish_id: dish.id, quantity: 1 }, { dish_id: dish.id, quantity: 1, note: 'less oil' }],
+      kitchen_note: 'serve together', dry_run: true,
+    })
+    expect(quote.status).toBe(200)
+    expect(quote.body.lines.map((l) => [l.quantity, l.note ?? null])).toEqual([[1, null], [1, 'less oil']])
+    expect(quote.body.kitchen_note).toBe('serve together')
+
+    const r = api.tabAdd({
+      table_no: 'T9',
+      items: [{ dish_id: dish.id, quantity: 1 }, { dish_id: dish.id, quantity: 1, note: 'less oil' }, { dish_id: dish.id, quantity: 1, note: 'Less Oil' }],
+      kitchen_note: 'serve together',
+    })
+    expect(r.status).toBe(201)
+    const id = r.body.tab.session_id
+    // the same request (any case) is one line; the round keeps its own request
+    expect(r.body.tab.rounds[0].items.map((l) => [l.quantity, l.note ?? null])).toEqual([[1, null], [2, 'less oil']])
+    expect(r.body.tab.rounds[0].kitchen_note).toBe('serve together')
+    // the tab (what the bill is made from) adds the dish up once, with no request on it
+    expect(r.body.tab.lines).toHaveLength(1)
+    expect(r.body.tab.lines[0]).toMatchObject({ dish_id: dish.id, quantity: 3 })
+    expect(r.body.tab.lines[0].note).toBeUndefined()
+
+    // the kitchen ticket shows both
+    const ticket = api.kitchen({ since_id: 0 }).body.rounds.find((t) => t.session_id === id)
+    expect(ticket.kitchen_note).toBe('serve together')
+    expect(ticket.items.map((l) => l.note)).toEqual([null, 'less oil'])
+
+    const closed = api.tabClose({ session_id: id, payment_mode: 'cash' })
+    expect(closed.body.bill.items).toHaveLength(1)
+    expect(closed.body.bill.items[0].quantity).toBe(3)
   })
 
   it('cancels only an empty tab', () => {

@@ -6,6 +6,9 @@
   --ink-soft: #6b5443;
   --accent: #8a2b1c;
   --leather: #4a1014;
+  /* the filled buttons (Review order, Talk to Greeny, Done) and button hovers */
+  --mc-blue: #2563eb;
+  --mc-blue-hover: #1d4ed8;
   --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .35 0 0 0 0 .25 0 0 0 0 .12 0 0 0 .22 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
   position: fixed;
   inset: 0;
@@ -68,7 +71,7 @@
   background-color: var(--paper);
   background-image: var(--grain), radial-gradient(ellipse at 50% 50%, transparent 55%, rgba(150, 110, 50, 0.2) 100%);
   box-shadow: 0 0 0 1px rgba(138, 98, 32, 0.55), 0 0 0 5px var(--leather), 0 0 0 6px rgba(201, 151, 59, 0.7), 0 26px 40px rgba(0, 0, 0, 0.55);
-  transition: filter 0.5s;
+  transition: filter 0.5s, opacity 0.45s;
   cursor: pointer;
 }
 .mc-card.active { cursor: default; }
@@ -187,7 +190,7 @@
   cursor: pointer;
   transition: background 0.15s, color 0.15s, border-color 0.15s, opacity 0.15s;
 }
-.mc-dock button:hover:not(:disabled) { background: #c9973b; border-color: #c9973b; color: #1c120c; }
+.mc-dock button:hover:not(:disabled) { background: var(--mc-blue); border-color: var(--mc-blue); color: #fff; }
 .mc-dock button:focus-visible { outline: 2px solid #f7e3a1; outline-offset: 2px; }
 .mc-dock button:disabled { opacity: 0.45; cursor: default; }
 
@@ -219,8 +222,8 @@
 .mc-divider { width: 1px; height: 26px; background: rgba(201, 151, 59, 0.3); }
 .mc-pill { display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 18px; border-radius: 999px; font-size: 14px; font-weight: 600; white-space: nowrap; }
 /* "Talk to Greeny" sits on its own under the bar */
-.mc-dock .mc-talk { height: 44px; padding: 0 24px; background: #c9973b; border-color: #c9973b; color: #1c120c; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35); }
-.mc-dock .mc-talk:hover { background: #e0b154; border-color: #e0b154; }
+.mc-dock .mc-talk { height: 44px; padding: 0 24px; background: var(--mc-blue); border-color: var(--mc-blue); color: #fff; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35); }
+.mc-dock .mc-talk:hover { background: var(--mc-blue-hover); border-color: var(--mc-blue-hover); }
 
 /* the order strip: always there while ordering is on, so the layout stays still */
 .mc-strip {
@@ -246,12 +249,19 @@
   min-width: 0;
   display: flex;
   gap: 6px;
+  align-self: stretch;
+  align-items: center;
   overflow-x: auto;
-  scrollbar-width: none;
-  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
-  mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
+  overflow-y: hidden;
+  /* a thin scrollbar along the bottom, so it is clear the row scrolls */
+  padding-top: 4px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(201, 151, 59, 0.7) transparent;
 }
-.mc-strip-items::-webkit-scrollbar { display: none; }
+.mc-strip-items::-webkit-scrollbar { height: 6px; }
+.mc-strip-items::-webkit-scrollbar-track { background: transparent; }
+.mc-strip-items::-webkit-scrollbar-thumb { background: rgba(201, 151, 59, 0.7); border-radius: 999px; }
+.mc-strip-items::-webkit-scrollbar-thumb:hover { background: #c9973b; }
 .mc-strip-items li {
   flex: none;
   display: flex;
@@ -265,7 +275,84 @@
   animation: mc-chip-in 180ms ease-out both;
 }
 @keyframes mc-chip-in { from { opacity: 0; transform: scale(0.9); } }
-.mc-strip-name { max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* a dish's name in the strip, with its special request (or "+ request") under it: tap to change it */
+.mc-strip-name {
+  all: unset;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  max-width: 140px;
+  min-height: 34px;
+  padding: 0 4px;
+  border-radius: 8px;
+  line-height: 1.15;
+  cursor: pointer;
+}
+.mc-strip-name:focus-visible { outline: 2px solid #c9973b; outline-offset: 1px; }
+.mc-strip-name:disabled { cursor: default; }
+.mc-strip-name span,
+.mc-strip-name small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mc-strip-name small { font-size: 11px; color: rgba(236, 217, 173, 0.5); }
+.mc-strip-name:hover:not(:disabled) small { color: rgba(236, 217, 173, 0.85); }
+.mc-strip-name.noted small { color: #e0b154; font-style: italic; }
+/* "+ Kitchen note": a request for the whole round, a square box pinned on the left of the strip */
+.mc-strip-note {
+  flex: none;
+  display: flex;
+  align-items: center;
+  padding-right: 10px;
+  border-right: 1px solid rgba(201, 151, 59, 0.25);
+}
+.mc-dock .mc-strip-note .mc-strip-name {
+  width: 104px;
+  max-width: 104px;
+  height: 40px;
+  padding: 0 10px;
+  border-radius: 6px;
+  border: 1px solid rgba(201, 151, 59, 0.55);
+  background: rgba(246, 237, 217, 0.06);
+}
+.mc-strip-note .mc-strip-name span { font-size: 12.5px; font-weight: 600; color: rgba(236, 217, 173, 0.85); }
+
+/* the special-request editor, above the strip */
+.mc-request {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: calc(100% + 8px);
+  z-index: 3;
+  display: grid;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: rgba(28, 18, 12, 0.97);
+  border: 1px solid rgba(201, 151, 59, 0.45);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+  color: #ecd9ad;
+  animation: mc-chip-in 160ms ease-out both;
+}
+.mc-request strong { font-size: 14px; color: #f6e7bf; }
+.mc-request-quick { display: flex; flex-wrap: wrap; gap: 6px; }
+.mc-request-quick button { height: 32px; padding: 0 12px; border-radius: 999px; font-size: 13px; border-color: rgba(201, 151, 59, 0.35); }
+.mc-request-quick button.on { background: var(--mc-blue); border-color: var(--mc-blue); color: #fff; font-weight: 600; }
+.mc-request form { display: flex; gap: 6px; align-items: center; }
+.mc-request input {
+  flex: 1;
+  min-width: 0;
+  height: 36px;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(201, 151, 59, 0.35);
+  background: rgba(246, 237, 217, 0.06);
+  color: inherit;
+  font: inherit;
+  font-size: 14px;
+}
+.mc-request input:focus { outline: 2px solid #c9973b; outline-offset: 0; }
+.mc-request form button { height: 36px; padding: 0 14px; border-radius: 999px; font-size: 13.5px; font-weight: 600; }
+.mc-dock .mc-request-done { background: var(--mc-blue); border-color: var(--mc-blue); color: #fff; }
+.mc-request-cancel { width: 36px; padding: 0 !important; border-color: transparent !important; }
 .mc-stepper { display: inline-flex; align-items: center; gap: 2px; font-variant-numeric: tabular-nums; }
 .mc-stepper span { min-width: 18px; text-align: center; font-weight: 700; }
 .mc-stepper button { width: 28px; height: 28px; border-radius: 50%; font-size: 16px; line-height: 1; border-color: rgba(201, 151, 59, 0.3); }
@@ -276,8 +363,8 @@
 .mc-strip-actions button { height: 40px; padding: 0 16px; border-radius: 999px; font-size: 14px; font-weight: 600; }
 .mc-strip-clear { border-color: transparent !important; color: rgba(236, 217, 173, 0.75) !important; padding: 0 10px !important; }
 .mc-strip-clear:hover:not(:disabled) { background: rgba(246, 237, 217, 0.1) !important; color: #ecd9ad !important; }
-.mc-dock .mc-strip-go { background: #c9973b; border-color: #c9973b; color: #1c120c; }
-.mc-dock .mc-strip-go:hover:not(:disabled) { background: #e0b154; border-color: #e0b154; }
+.mc-dock .mc-strip-go { background: var(--mc-blue); border-color: var(--mc-blue); color: #fff; }
+.mc-dock .mc-strip-go:hover:not(:disabled) { background: var(--mc-blue-hover); border-color: var(--mc-blue-hover); }
 .mc-strip-msg {
   position: absolute;
   left: 12px;
@@ -333,3 +420,207 @@
   .mc-ring { transition-duration: 0.01s; }
   .menu-carousel, .menu-carousel.leaving { animation-duration: 1ms; }
 }
+
+/* the big card: a double-click / double-tap on a card opens it large, flat, in the middle */
+.mc-zoom {
+  position: absolute;
+  inset: 0;
+  z-index: 6; /* over the ring and the dock */
+  display: grid;
+  place-items: center;
+  background: rgba(10, 6, 3, 0.55);
+  backdrop-filter: blur(3px);
+  animation: mc-zoom-bg 200ms ease-out both;
+}
+.menu-carousel .mc-card.mc-card-zoom {
+  position: relative;
+  inset: auto;
+  transform: none;
+  filter: none;
+  cursor: default;
+  animation: mc-zoom-in 260ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.mc-card-zoom .mc-inner { padding: 26px 28px 18px; }
+.mc-card-zoom .mc-list { overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+.mc-zoom-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1px solid rgba(138, 98, 32, 0.45);
+  background: rgba(246, 237, 217, 0.92);
+  color: var(--ink);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+.mc-zoom-close:hover { background: var(--mc-blue); border-color: var(--mc-blue); color: #fff; }
+.mc-zoom-close:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+@keyframes mc-zoom-bg { from { opacity: 0; } }
+@keyframes mc-zoom-in { from { opacity: 0; transform: scale(0.85); } }
+@media (prefers-reduced-motion: reduce) {
+  .mc-zoom, .menu-carousel .mc-card.mc-card-zoom { animation-duration: 1ms; }
+}
+
+/* ---- the order as a square panel on the left of the window (wide screens: .with-panel) ---- */
+.mc-strip-title { display: none; }
+.menu-carousel.with-panel .mc-strip {
+  position: absolute;
+  left: var(--panel-gap);
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 2;
+  width: var(--panel-w);
+  /* a fixed size: more dishes scroll inside it instead of making it grow */
+  height: min(440px, calc(100% - 120px)); /* clear of the badges at the top */
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: 10px;
+  padding: 16px;
+  border-radius: 12px;
+  font-family: system-ui, 'Segoe UI', sans-serif;
+  color: #ecd9ad;
+  animation: mc-panel-in 260ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+@keyframes mc-panel-in { from { opacity: 0; transform: translate(-16px, -50%); } }
+.menu-carousel.with-panel .mc-strip.empty { justify-content: flex-start; }
+/* an order card is open: it takes this place, and the panel comes back when it closes */
+.menu-carousel.with-panel.with-order .mc-strip { display: none; }
+.menu-carousel.with-panel .mc-strip-title {
+  display: block;
+  font-family: 'Playfair Display', 'Cormorant Garamond', Georgia, serif;
+  font-size: 20px;
+  font-weight: 700;
+  color: #f6e7bf;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(201, 151, 59, 0.25);
+}
+.menu-carousel.with-panel .mc-strip-empty { margin: auto 0; padding: 24px 8px; text-align: center; line-height: 1.4; }
+.menu-carousel.with-panel .mc-strip-note { padding-right: 0; border-right: none; }
+.menu-carousel.with-panel .mc-dock .mc-strip-note .mc-strip-name,
+.menu-carousel.with-panel .mc-strip-note .mc-strip-name { width: 100%; max-width: none; }
+.menu-carousel.with-panel .mc-strip-items {
+  flex: 1 1 auto;
+  min-height: 0;
+  flex-direction: column;
+  align-items: stretch;
+  align-self: auto;
+  gap: 6px;
+  padding: 0 4px 0 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 6px;
+}
+.menu-carousel.with-panel .mc-strip-items::-webkit-scrollbar { width: 6px; height: auto; }
+/* the header, kitchen note and totals keep their size; only the dish list gives way */
+.menu-carousel.with-panel .mc-strip-title,
+.menu-carousel.with-panel .mc-strip-note,
+.menu-carousel.with-panel .mc-strip-actions { flex: none; }
+.menu-carousel.with-panel .mc-strip-items li { flex: none; animation: none; }
+.menu-carousel.with-panel .mc-strip-items li {
+  height: auto;
+  min-height: 46px;
+  justify-content: space-between;
+  padding: 4px 6px 4px 8px;
+  border-radius: 8px;
+}
+.menu-carousel.with-panel .mc-strip-items .mc-strip-name { flex: 1; min-width: 0; max-width: none; }
+.menu-carousel.with-panel .mc-strip-actions {
+  flex-wrap: wrap;
+  padding: 10px 0 0;
+  border-left: none;
+  border-top: 1px solid rgba(201, 151, 59, 0.25);
+}
+.menu-carousel.with-panel .mc-strip-sum { align-items: flex-start; margin-right: auto; }
+/* the request editor and messages open beside the panel, not above it */
+.menu-carousel.with-panel .mc-request { left: calc(100% + 10px); right: auto; top: 0; bottom: auto; width: min(340px, 40vw); }
+.menu-carousel.with-panel .mc-strip-msg { left: 0; right: 0; top: calc(100% + 8px); bottom: auto; }
+
+/* ---- light theme: the same menu on a warm, light parchment room instead of dark wood ---- */
+:root[data-theme='light'] .menu-carousel {
+  background: radial-gradient(ellipse at 50% 40%, rgba(253, 248, 238, 0.95), rgba(236, 223, 198, 0.97) 75%);
+}
+:root[data-theme='light'] .mc-card { box-shadow: 0 0 0 1px rgba(138, 98, 32, 0.55), 0 0 0 5px var(--leather), 0 0 0 6px rgba(201, 151, 59, 0.7), 0 22px 34px rgba(90, 60, 20, 0.28); }
+:root[data-theme='light'] .mc-floor { background: radial-gradient(ellipse at center, rgba(90, 60, 20, 0.22), transparent 70%); }
+:root[data-theme='light'] .mc-dock { color: #3a2616; }
+:root[data-theme='light'] .mc-dock button { border-color: rgba(138, 98, 32, 0.4); }
+:root[data-theme='light'] .mc-dock button:focus-visible { outline-color: #8a2b1c; }
+:root[data-theme='light'] .mc-controls,
+:root[data-theme='light'] .mc-strip { background: rgba(255, 251, 242, 0.92); border-color: rgba(138, 98, 32, 0.35); box-shadow: 0 4px 14px rgba(90, 60, 20, 0.12); }
+:root[data-theme='light'] .mc-strip.empty { background: rgba(255, 251, 242, 0.6); box-shadow: none; }
+:root[data-theme='light'] .mc-strip-empty,
+:root[data-theme='light'] .mc-label-count,
+:root[data-theme='light'] .mc-strip-sum small { color: rgba(58, 38, 22, 0.6); }
+:root[data-theme='light'] .mc-divider { background: rgba(138, 98, 32, 0.3); }
+:root[data-theme='light'] .mc-strip-items li { background: rgba(138, 98, 32, 0.1); }
+:root[data-theme='light'] .mc-strip-note { border-right-color: rgba(138, 98, 32, 0.25); }
+:root[data-theme='light'] .mc-dock .mc-strip-note .mc-strip-name { border-color: rgba(138, 98, 32, 0.5); background: #fff; }
+:root[data-theme='light'] .mc-strip-name small { color: rgba(58, 38, 22, 0.5); }
+:root[data-theme='light'] .mc-strip-name:hover:not(:disabled) small { color: rgba(58, 38, 22, 0.85); }
+:root[data-theme='light'] .mc-strip-name.noted small { color: #8a5a12; }
+:root[data-theme='light'] .mc-strip-note .mc-strip-name span { color: rgba(58, 38, 22, 0.85); }
+:root[data-theme='light'] .mc-strip-name:focus-visible { outline-color: #8a2b1c; }
+:root[data-theme='light'] .mc-strip-actions { border-left-color: rgba(138, 98, 32, 0.25); }
+:root[data-theme='light'] .mc-strip-sum strong { color: #2b1d14; }
+:root[data-theme='light'] .mc-strip-clear { color: rgba(58, 38, 22, 0.75) !important; }
+:root[data-theme='light'] .mc-strip-clear:hover:not(:disabled) { background: rgba(138, 98, 32, 0.12) !important; color: #2b1d14 !important; }
+:root[data-theme='light'] .mc-dock .mc-talk { box-shadow: 0 6px 18px rgba(90, 60, 20, 0.25); }
+:root[data-theme='light'] .mc-request { background: rgba(255, 252, 245, 0.98); border-color: rgba(138, 98, 32, 0.4); box-shadow: 0 10px 30px rgba(90, 60, 20, 0.22); color: #3a2616; }
+:root[data-theme='light'] .mc-request strong { color: #2b1d14; }
+:root[data-theme='light'] .mc-request input { background: #fff; border-color: rgba(138, 98, 32, 0.4); }
+:root[data-theme='light'] .mc-request input:focus { outline-color: #8a2b1c; }
+:root[data-theme='light'] .mc-zoom { background: rgba(120, 95, 60, 0.3); }
+:root[data-theme='light'] .mc-strip-items { scrollbar-color: rgba(138, 98, 32, 0.6) transparent; }
+:root[data-theme='light'] .mc-strip-items::-webkit-scrollbar-thumb { background: rgba(138, 98, 32, 0.6); }
+:root[data-theme='light'] .menu-carousel.with-panel .mc-strip { color: #3a2616; }
+:root[data-theme='light'] .menu-carousel.with-panel .mc-strip-title { color: #2b1d14; border-bottom-color: rgba(138, 98, 32, 0.25); }
+:root[data-theme='light'] .menu-carousel.with-panel .mc-strip-actions { border-top-color: rgba(138, 98, 32, 0.25); }
+
+/* the 3D book: in place of the ring of cards, over the same room */
+.mc-book { position: relative; width: 100%; flex: none; }
+.mc-book canvas { touch-action: none; }
+
+/* ---- dragging a dish onto "Your order" ---- */
+.mc-pick { touch-action: pan-y; } /* sideways is a drag, up and down still scrolls the list */
+.mc-drag-ghost {
+  position: fixed;
+  z-index: 20;
+  transform: translate(-50%, -130%);
+  max-width: 220px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: rgba(28, 18, 12, 0.94);
+  border: 1px solid rgba(201, 151, 59, 0.6);
+  color: #f6e7bf;
+  font: 600 14px/1.2 system-ui, 'Segoe UI', sans-serif;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.35);
+}
+.mc-drag-ghost.over { background: var(--mc-blue); border-color: var(--mc-blue); color: #fff; }
+/* while a dish is dragged, the order comes up above the enlarged card and invites the drop */
+.mc-strip.drop-target { z-index: 7; outline: 2px dashed var(--mc-blue); outline-offset: 3px; }
+.mc-strip.drop-over { outline-style: solid; box-shadow: 0 0 0 6px rgba(37, 99, 235, 0.18), 0 10px 28px rgba(0, 0, 0, 0.25); }
+.mc-drop-flash {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: rgba(37, 99, 235, 0.16);
+  animation: mc-drop-flash 600ms ease-out both;
+}
+@keyframes mc-drop-flash { to { opacity: 0; } }
+:root[data-theme='light'] .mc-drag-ghost { background: rgba(255, 252, 245, 0.97); color: #2b1d14; border-color: rgba(138, 98, 32, 0.5); box-shadow: 0 8px 22px rgba(90, 60, 20, 0.25); }
+:root[data-theme='light'] .mc-drag-ghost.over { background: var(--mc-blue); border-color: var(--mc-blue); color: #fff; }
+@media (prefers-reduced-motion: reduce) { .mc-drop-flash { animation-duration: 1ms; } }
+
+/* while a card is enlarged, "Your order" stays in front of its blurred backdrop, sharp and usable,
+   and the big card centres in the space beside it */
+.mc-strip.above-zoom { z-index: 7; }
+.menu-carousel.with-panel:not(.with-order) .mc-zoom { padding-left: var(--order-room, 0px); box-sizing: border-box; }

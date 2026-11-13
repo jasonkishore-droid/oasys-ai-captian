@@ -48,7 +48,7 @@
   width: calc(860px * var(--s));
   height: calc(660px * var(--s));
   transform: translateX(-50%);
-  border-radius: calc(300px * var(--s));
+  border-radius: calc(130px * var(--s));
   background:
     radial-gradient(90% 70% at 26% 6%, rgba(255, 255, 255, 0.55), transparent 62%),
     linear-gradient(180deg,
@@ -101,7 +101,7 @@
   z-index: 1;
   inset: 9% 5% 11%;
   overflow: hidden;
-  border-radius: calc(230px * var(--s));
+  border-radius: calc(92px * var(--s));
   background: #030303;
   box-shadow:
     0 0 0 calc(3px * var(--s)) rgba(0, 0, 0, 0.7),
@@ -183,7 +183,7 @@
    glides right (and a little smaller) to make room; both go back when it closes ---- */
 .app.studio {
   --order-w: min(400px, 42vw);
-  --order-gap: max(16px, 3vw);
+  --order-gap: max(24px, 4vw);
 }
 .app.studio .head,
 .app.studio .studio-floor {
@@ -196,22 +196,41 @@
 }
 
 .studio-order {
+  /* defined here too: the card also opens beside the menu on the plain tablet view, which has no .studio parent */
+  --order-w: min(400px, 42vw);
+  --order-gap: max(24px, 4vw);
   position: fixed;
   z-index: 25;
   left: var(--order-gap);
   top: 50%;
   width: var(--order-w);
   translate: 0 -50%;
-  animation: studio-order-in 520ms var(--ease, cubic-bezier(0.2, 0.7, 0.2, 1)) both;
+  animation: studio-order-in 260ms ease-out both; /* it just fades in: no sliding */
 }
 .studio-order.leaving {
-  animation: studio-order-out 380ms ease-in both;
+  animation: studio-order-out 200ms ease-in both;
+}
+/* beside the menu it takes the place of the "Your order" panel: same left edge, width and height */
+.studio-order.in-menu {
+  --order-w: clamp(260px, 26vw, 320px);
+  --order-gap: max(24px, 4vw);
+  height: min(440px, calc(100vh - 120px));
+}
+.studio-order.in-menu .note {
+  height: 100%;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+.studio-order.in-menu .note .note-actions {
+  margin-top: auto;
 }
 .studio-order .note {
   display: grid;
   gap: 4px;
   padding: 22px;
-  border-radius: 22px;
+  border-radius: 12px;
   text-align: center;
   box-shadow: 0 24px 64px rgba(0, 0, 0, 0.55);
 }
@@ -225,17 +244,15 @@
 @keyframes studio-order-in {
   from {
     opacity: 0;
-    transform: translateX(calc(-100% - var(--order-gap))) scale(0.96);
   }
 }
 @keyframes studio-order-out {
   to {
     opacity: 0;
-    transform: translateX(calc(-60% - var(--order-gap))) scale(0.96);
   }
 }
 
-/* a phone held upright has no room beside the head: the card rises from the bottom instead */
+/* a phone held upright has no room beside the head: the card sits at the bottom instead */
 @media (max-width: 720px) {
   .app.studio.order-open .head,
   .app.studio.order-open .studio-floor {
@@ -243,18 +260,12 @@
     scale: 0.7;
   }
   .studio-order {
-    left: 16px;
-    right: 16px;
+    left: 24px;
+    right: 24px;
     top: auto;
-    bottom: max(16px, env(safe-area-inset-bottom));
+    bottom: max(24px, env(safe-area-inset-bottom));
     width: auto;
     translate: none;
-  }
-  @keyframes studio-order-in {
-    from {
-      opacity: 0;
-      transform: translateY(40px);
-    }
   }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -267,3 +278,72 @@
     animation-duration: 1ms;
   }
 }
+
+/* while the menu is open, the head shrinks into the bottom-right corner of the screen (over the menu) and
+   goes back to the middle when the menu closes. It never takes a tap away from the menu. */
+.app.studio.menu-open .head,
+.app.studio.menu-open.order-open .head {
+  /* 0.22 size, pinned to the corner: the shift puts its right and bottom edges 24px and 18px from the screen's */
+  translate: calc(11vw - 24px - 94.6px * var(--s)) calc(11vh - 18px - 72.6px * var(--s));
+  scale: 0.22;
+  transform-origin: 100% 100%;
+  z-index: 6;
+  pointer-events: none;
+}
+.app.studio.menu-open .studio-floor,
+.app.studio.menu-open.order-open .studio-floor {
+  opacity: 0;
+}
+.app.studio .studio-floor { transition: opacity 400ms ease; }
+
+/* the bot is the talk button, in the middle or in the corner: only its body takes taps */
+.app.studio .studio-shell { pointer-events: auto; cursor: pointer; }
+
+/* conversation mode: a blue aurora line draws itself round the bot, from the top centre clockwise back to the
+   top centre, like a loading bar. It keeps running round while Greeny connects, then stays as a full outline
+   with a wide, soft glow whose colour drifts slowly between cyan, blue and violet. */
+@property --ring {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 0deg;
+}
+.studio-ring {
+  position: absolute;
+  /* an even gap of 26 units all round, then the line, 9 units thick. The bot's lower edge sticks out about 13
+     units below its shell, so the ring reaches that much further down to keep the gap the same there. */
+  inset: calc(-35px * var(--s)) calc(-35px * var(--s)) calc(-48px * var(--s));
+  padding: calc(9px * var(--s));
+  border-radius: calc(165px * var(--s)); /* the bot's corner radius (130) plus the gap and the line: the curves stay parallel */
+  background: conic-gradient(from 0deg, #5b9bff var(--ring), transparent 0);
+  /* keep only the ring: the whole box minus the inside */
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  filter: drop-shadow(0 0 5px #6aa8ff) drop-shadow(0 0 18px rgba(80, 140, 255, 0.8)) drop-shadow(0 0 44px rgba(130, 100, 255, 0.45));
+  opacity: 0;
+  pointer-events: none;
+  z-index: 3;
+}
+/* connecting: the line keeps drawing itself round and round */
+.app.studio.convo-connecting .studio-ring { opacity: 1; animation: ring-sweep 1.3s linear infinite; }
+/* live: one last sweep round, then the full outline with the drifting aurora glow */
+.app.studio.convo-on .studio-ring { opacity: 1; --ring: 360deg; animation: ring-sweep 0.9s ease-out, ring-aurora 7s ease-in-out 0.9s infinite alternate; }
+/* small in the corner the line needs to be thicker to show */
+.app.studio.menu-open .studio-ring { padding: calc(22px * var(--s)); inset: calc(-52px * var(--s)) calc(-52px * var(--s)) calc(-61px * var(--s)); border-radius: calc(182px * var(--s)); }
+@keyframes ring-sweep { from { --ring: 0deg; } to { --ring: 360deg; } }
+@keyframes ring-aurora {
+  from { filter: hue-rotate(-30deg) drop-shadow(0 0 4px #6aa8ff) drop-shadow(0 0 14px rgba(80, 140, 255, 0.7)) drop-shadow(0 0 36px rgba(60, 200, 255, 0.4)); }
+  to { filter: hue-rotate(38deg) drop-shadow(0 0 7px #6aa8ff) drop-shadow(0 0 24px rgba(80, 140, 255, 0.9)) drop-shadow(0 0 56px rgba(150, 90, 255, 0.55)); }
+}
+@media (prefers-reduced-motion: reduce) { .app.studio.convo-connecting .studio-ring, .app.studio.convo-on .studio-ring { animation: none; --ring: 360deg; } }
+
+/* closing the menu: the bot glides slowly back to the centre (it goes into the corner faster) */
+.app.studio .head,
+.app.studio .studio-floor {
+  transition: translate 1500ms cubic-bezier(0.45, 0, 0.2, 1), scale 1500ms cubic-bezier(0.45, 0, 0.2, 1), opacity 1200ms ease;
+}
+.app.studio.menu-open .head,
+.app.studio.menu-open .studio-floor {
+  transition: translate 700ms cubic-bezier(0.2, 0.7, 0.2, 1), scale 700ms cubic-bezier(0.2, 0.7, 0.2, 1), opacity 400ms ease;
+}
+@media (prefers-reduced-motion: reduce) { .app.studio .head, .app.studio .studio-floor { transition: none; } }

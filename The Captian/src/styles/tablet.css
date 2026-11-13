@@ -64,6 +64,11 @@
 .app.tablet-only {
   background: #000;
 }
+/* light is the default theme: the tablet's screen follows it (the dark theme keeps the black screen) */
+:root[data-theme='light'] .app.tablet-only,
+:root[data-theme='light'] .tablet-stage canvas.tablet-screen {
+  background: #fff;
+}
 
 .app.tablet-only::before {
   display: none;
@@ -88,7 +93,7 @@
   gap: 12px;
   padding: 14px 24px 14px 20px;
   border: 1px solid color-mix(in srgb, var(--face) 55%, transparent);
-  border-radius: 999px;
+  border-radius: 12px;
   background: color-mix(in srgb, var(--face) 18%, rgba(0, 0, 0, 0.55));
   color: #fff;
   font: inherit;
@@ -236,7 +241,7 @@
   gap: 12px;
   padding: 8px;
   border: 1px solid color-mix(in srgb, var(--face) 40%, transparent);
-  border-radius: 999px;
+  border-radius: 14px;
   background: rgba(0, 0, 0, 0.55);
   backdrop-filter: blur(14px) saturate(1.4);
   box-shadow: 0 10px 34px rgba(0, 0, 0, 0.45);
@@ -249,7 +254,7 @@
   min-height: 44px;
   padding: 0 18px;
   border: 0;
-  border-radius: 999px;
+  border-radius: 12px;
   background: color-mix(in srgb, var(--face) 18%, transparent);
   color: #fff;
   font: inherit;
@@ -338,7 +343,7 @@
   max-width: calc(100vw - 32px);
   padding: 0 16px 0 14px;
   border: 1px solid color-mix(in srgb, var(--face) 40%, transparent);
-  border-radius: 999px;
+  border-radius: 12px;
   background: rgba(0, 0, 0, 0.55);
   color: #fff;
   font: inherit;
@@ -552,8 +557,22 @@ div.tablet-inventory {
   opacity: 0.75;
 }
 
+/* the inventory and printer badges, opened from the "i" button */
+.tablet-info-panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 7;
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+  width: max-content;
+  max-width: calc(100vw - 32px);
+}
+
 /* an open settings menu stays above the order card and popups */
-.tablet-badges:has(.tablet-menu) {
+.tablet-badges:has(.tablet-menu),
+.tablet-badges:has(.tablet-info-panel) {
   z-index: 40;
 }
 

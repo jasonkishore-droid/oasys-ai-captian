@@ -7,6 +7,8 @@ import TabletBot3D from './three/TabletBot3D.jsx'
 import StudioAvatar from './StudioAvatar.jsx'
 import StudioOrder from './StudioOrder.jsx'
 import MenuCarousel, { findSection, loadMenuSections } from './MenuCarousel.jsx'
+import KitchenScreen from './kds/KitchenScreen.jsx'
+import TabletInfo from './TabletInfo.jsx'
 import { useHeadTurn } from './useHeadTurn.js'
 import { sceneScale } from './lib/detection.js'
 import CameraCard from './CameraCard.jsx'
@@ -220,6 +222,9 @@ export default function App() {
   }, [order])
   // The menu card carousel: { sections, ask: { name, at } } while it is on screen
   const [menu, setMenu] = useState(null)
+  // The Kitchen Display Screen: a full-screen card like the menu. Opened at once
+  // on a device dedicated to the kitchen by adding ?kitchen to the address.
+  const [kitchen, setKitchen] = useState(() => new URLSearchParams(window.location.search).has('kitchen'))
   const showMenu = useCallback(async (section) => {
     if (section === null) {
       setMenu(null)
@@ -230,12 +235,33 @@ export default function App() {
       if (!sections.length) return { ok: false, error: 'The menu is empty right now.' }
       const i = findSection(sections, section)
       const at = sections[Math.max(0, i)].title
+      setKitchen(false)
       setMenu({ sections, ask: { name: at, at: Date.now() } })
       return { ok: true, section: at, matched: i >= 0, sections: sections.map((s) => s.title) }
     } catch (e) {
       return { ok: false, error: e.message }
     }
   }, [])
+  // Live sold-out sync: while the menu is on screen, the server says when stock or the till changes
+  // what is sold out, and the cards refresh in place (same section, same order in progress).
+  const menuOpen = !!menu
+  useEffect(() => {
+    if (!menuOpen || typeof EventSource === 'undefined') return
+    let alive = true
+    const refresh = async () => {
+      try {
+        const sections = await loadMenuSections()
+        if (!alive || !sections.length) return
+        setMenu((m) => (m && JSON.stringify(m.sections) !== JSON.stringify(sections) ? { ...m, sections } : m))
+      } catch { /* offline for a moment: the stream reconnects by itself and sends a fresh event */ }
+    }
+    const es = new EventSource('/api/oasys/menu/stream') // reconnects by itself; every (re)connect starts with an event
+    es.addEventListener('menu', refresh)
+    return () => {
+      alive = false
+      es.close()
+    }
+  }, [menuOpen])
   // The menu stays open while the guest orders (it closes only when they say so): the order card
   // then sits in a column on its left as a popup, also on the tablet, whose screen the menu covers.
 
@@ -625,14 +651,27 @@ export default function App() {
   return (
     <div
       ref={appRef}
-      className={`app${rear ? ' rear' : ''}${tabletOnly ? ' tablet-only' : ''}${studio ? ' studio' : ''}${studio && order ? ' order-open' : ''}`}
+      className={`app${rear ? ' rear' : ''}${tabletOnly ? ' tablet-only' : ''}${studio ? ' studio' : ''}${studio && order ? ' order-open' : ''}${menu ? ' menu-open' : ''}${liveOn ? ' convo-on' : ''}${live.state === 'connecting' ? ' convo-connecting' : ''}`}
       style={{ '--face': faceColor, '--iris': eyeColor, '--s': scale * botSize, '--bot-size': botSize }}
     >
-      {orderAsPopup && <StudioOrder order={order} onAction={orderAction} onClose={() => setOrder(null)} />}
+      {orderAsPopup && (
+        <StudioOrder
+          order={order}
+          onAction={orderAction}
+          onClose={() => setOrder(null)}
+          inMenu={!!menu}
+          // "Go back": drop the round waiting for a yes (nothing was sent) and return to the menu, dishes still in the order
+          onBack={async () => {
+            await runTool('confirm_order', { confirm: false })
+            setOrder(null)
+          }}
+        />
+      )}
       {studio && (
         <>
           <div className="studio-floor" />
-          <div className="head">
+          {/* the bot is the talk button, big in the middle or small in the corner beside the menu: tap it to start or stop talking to Greeny */}
+          <div className="head" onClick={live.toggle} title={liveOn ? 'Tap to stop talking' : 'Tap to talk to Greeny'}>
             <StudioAvatar
               look={watching}
               mood={mood}
@@ -660,6 +699,7 @@ export default function App() {
         scene={tabletOnly ? 'screen' : 'table'}
       />}
       {flash > 0 && <div key={flash} className="photo-flash" aria-hidden="true" />}
+      {kitchen && <KitchenScreen onClose={() => setKitchen(false)} />}
       {menu && (
         <MenuCarousel
           sections={menu.sections}
@@ -668,13 +708,13 @@ export default function App() {
           onClose={() => setMenu(null)}
           onOrder={settings.oasysOrdering ? orderFromMenu : undefined}
           orderStage={order?.stage}
-          // while the menu is open, its own bar holds the talk button, so nothing sits on top of it
-          onTalk={tabletOnly && (live.state === 'off' || live.state === 'error') ? live.toggle : undefined}
+          // (no talk button on the menu: while it is open the little bot in the corner is the button)
         />
       )}
 
-      {/* tablet-only view: a single tap starts the voice chat (browsers need a gesture before audio plays) */}
-      {tabletOnly && !menu && (live.state === 'off' || live.state === 'error') && (
+      {/* tablet-only view: a single tap starts the voice chat (browsers need a gesture before audio plays).
+          With the Studio bot the bot itself is the button, so this one is only for the plain eyes view. */}
+      {tabletOnly && !studio && !menu && (live.state === 'off' || live.state === 'error') && (
         <button className="tablet-start" onClick={live.toggle} aria-label="Start voice chat">
           <Icon name="mic" size={26} />
           <span>Tap to talk to Greeny</span>
@@ -704,20 +744,26 @@ export default function App() {
               if (hashStudio() && v !== 'studio') history.replaceState(null, '', window.location.pathname + window.location.search), setStudioHash(false)
             }}
           />
-          <TabletInventory
-            enabled={!!settings.oasysOrdering}
-            onChange={(on) => {
-              set('oasysOrdering', on)
-              if (on) live.say('[App] The inventory is now connected. You can read the menu and take orders. Do not reply to this note.')
-            }}
-          />
-          {settings.oasysOrdering && <TabletPrinter />}
+          <TabletInfo>
+            <TabletInventory
+              enabled={!!settings.oasysOrdering}
+              onChange={(on) => {
+                set('oasysOrdering', on)
+                if (on) live.say('[App] The inventory is now connected. You can read the menu and take orders. Do not reply to this note.')
+              }}
+            />
+            {settings.oasysOrdering && <TabletPrinter />}
+          </TabletInfo>
           {settings.oasysOrdering && (
             <button className="tablet-inventory" onClick={() => showMenu('')} aria-label="Show the menu card">
               Menu
             </button>
           )}
-          {settings.oasysOrdering && tab && <TabletTab tab={tab} onOpen={showTab} />}
+          {/* Games: the button is here; what it opens is still to be decided */}
+          <button className="tablet-inventory" onClick={() => pushToast('Games are coming soon')} aria-label="Games">
+            Games
+          </button>
+          {settings.oasysOrdering && tab &&<TabletTab tab={tab} onOpen={showTab} />}
         </div>
       )}
       {tabletOnly && cameraOn && <TabletCam stream={camStream} mirror={!rear} who={everyone} />}

@@ -5,7 +5,7 @@ const OUT_MS = 380
 
 // The Studio version's order card: it slides in on the left while the head glides to the
 // right (the .order-open class on .app), and slides out again before it goes away.
-export default function StudioOrder({ order, onAction, onClose, onOpen }) {
+export default function StudioOrder({ order, onAction, onClose, onOpen, onBack, inMenu = false }) {
   const [shown, setShown] = useState(order)
   const [leaving, setLeaving] = useState(false)
   useEffect(() => {
@@ -22,8 +22,8 @@ export default function StudioOrder({ order, onAction, onClose, onOpen }) {
   useEffect(() => onOpen?.(!!order), [order, onOpen])
   if (!shown) return null
   return (
-    <div className={`studio-order${leaving ? ' leaving' : ''}`}>
-      <OrderCard order={shown} onAction={onAction} onClose={onClose} />
+    <div className={`studio-order${leaving ? ' leaving' : ''}${inMenu ? ' in-menu' : ''}`}>
+      <OrderCard order={shown} onAction={onAction} onClose={onClose} onBack={onBack} />
     </div>
   )
 }

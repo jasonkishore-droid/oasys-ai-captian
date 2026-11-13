@@ -1,0 +1,143 @@
+/* The Kitchen Display Screen. Light by default (a dark mode is one tap away). Scoped to .kds.
+   A ticket's header colour is its urgency: green = on time, amber = 10+ min, red = 20+ min, grey = ready. */
+.kds {
+  --bg: #f4f1ea;
+  --bar: #ffffff;
+  --card: #ffffff;
+  --ink: #1f1a16;
+  --ink-soft: #6f655c;
+  --line: #e4ded3;
+  --brand: #8a2b1c;
+  --ok: #2f9e5b;
+  --warn: #e0912b;
+  --late: #d6453d;
+  --done: #9a948b;
+  --ask-bg: #fff3d6;
+  --ask-ink: #8a4b00;
+  --btn: #2563eb;
+  --btn-hover: #1d4ed8;
+  --shadow: 0 1px 2px rgba(60, 40, 20, 0.08), 0 6px 18px rgba(60, 40, 20, 0.08);
+  position: fixed;
+  inset: 0;
+  z-index: 5; /* under the badges and call buttons, over the bot: like the menu card */
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  color: var(--ink);
+  background: var(--bg);
+  font-family: system-ui, 'Segoe UI', sans-serif;
+  animation: kds-in 320ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.kds[data-theme='dark'] {
+  --bg: #121212;
+  --bar: #1a1a1a;
+  --card: #1e1e1e;
+  --ink: #f1efea;
+  --ink-soft: #9a948b;
+  --line: #2c2c2c;
+  --brand: #e0725f;
+  --ok: #34a867;
+  --warn: #d98a22;
+  --late: #e0524a;
+  --done: #4a4642;
+  --ask-bg: rgba(245, 196, 81, 0.14);
+  --ask-ink: #f5c451;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+  color-scheme: dark;
+}
+.kds.leaving { animation: kds-out 220ms ease-in both; }
+@keyframes kds-in { from { opacity: 0; transform: scale(0.985); } }
+@keyframes kds-out { to { opacity: 0; } }
+.kds * { box-sizing: border-box; }
+.kds h1, .kds h2, .kds h3, .kds p, .kds ul { margin: 0; padding: 0; }
+.kds button { font: inherit; cursor: pointer; }
+.kds button:focus-visible { outline: 2px solid var(--btn); outline-offset: 2px; }
+.kds-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* title bar: the restaurant, the time, the controls. It starts below the app's own badges. */
+.kds-bar { flex: none; display: flex; align-items: center; gap: 24px; padding: 62px 24px 12px; background: var(--bar); border-bottom: 1px solid var(--line); }
+.kds-brand { display: flex; align-items: center; gap: 12px; }
+.kds-mark { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 50%; background: var(--brand); color: #fff; font: 700 22px/1 'Playfair Display', Georgia, serif; }
+.kds-brand h1 { font: 700 24px/1.1 'Playfair Display', Georgia, serif; color: var(--brand); letter-spacing: 0.03em; }
+.kds-brand p { margin-top: 2px; color: var(--ink-soft); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; }
+.kds-clock { display: flex; flex-direction: column; align-items: center; margin: 0 auto; line-height: 1.15; color: var(--ink-soft); font-size: 12px; }
+.kds-clock strong { color: var(--ink); font-size: 22px; font-variant-numeric: tabular-nums; }
+.kds-tools { display: flex; align-items: center; gap: 10px; }
+.kds-link { display: inline-flex; align-items: center; gap: 7px; margin-right: 6px; color: var(--ink-soft); font-size: 13px; }
+.kds-link i { width: 8px; height: 8px; border-radius: 50%; background: var(--late); }
+.kds-link.on i { background: var(--ok); }
+.kds-chip { padding: 6px 14px; border: 1px solid var(--line); border-radius: 999px; background: none; color: var(--ink-soft); font-size: 13px; }
+.kds-chip:hover { color: var(--ink); border-color: var(--ink-soft); }
+.kds-chip[aria-pressed='true'] { color: var(--ink); border-color: var(--ink); }
+.kds-close { width: 34px; height: 34px; border: 1px solid var(--line); border-radius: 50%; background: none; color: var(--ink); }
+.kds-close:hover { background: var(--btn); border-color: var(--btn); color: #fff; }
+
+/* tabs */
+.kds-tabs { flex: none; display: flex; gap: 6px; padding: 0 24px; background: var(--bar); border-bottom: 1px solid var(--line); }
+.kds-tabs button { padding: 12px 18px; border: 0; border-bottom: 3px solid transparent; background: none; color: var(--ink-soft); font-size: 14px; font-weight: 600; }
+.kds-tabs button span { font-weight: 500; }
+.kds-tabs button:hover { color: var(--ink); }
+.kds-tabs button[aria-selected='true'] { color: var(--brand); border-bottom-color: var(--brand); }
+
+.kds-alert { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 12px 24px 0; padding: 10px 14px; border: 1px solid var(--late); border-radius: 10px; background: rgba(214, 69, 61, 0.1); color: var(--late); font-size: 14px; }
+
+/* the wall of tickets: columns fill like a masonry board, as on a kitchen screen */
+.kds-main { flex: 1; min-height: 0; overflow-y: auto; padding: 20px 24px 28px; }
+.kds-wall { column-width: 290px; column-gap: 16px; }
+.kds-empty { padding: 60px 0; text-align: center; color: var(--ink-soft); font: italic 22px 'Cormorant Garamond', Georgia, serif; }
+
+/* a ticket */
+.kds-ticket { break-inside: avoid; display: flex; flex-direction: column; margin: 0 0 16px; overflow: hidden; border: 1px solid var(--line); border-radius: 12px; background: var(--card); box-shadow: var(--shadow); }
+.kds-ticket.fresh { animation: kds-arrive 1.4s ease-out; }
+@keyframes kds-arrive { from { box-shadow: 0 0 0 4px var(--btn), var(--shadow); } }
+.kds-ticket > header { padding: 10px 14px 9px; color: #fff; background: var(--ok); }
+.kds-ticket[data-level='warn'] > header { background: var(--warn); }
+.kds-ticket[data-level='late'] > header { background: var(--late); }
+.kds-ticket[data-level='done'] > header { background: var(--done); }
+.kds-ticket .top { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.kds-ticket h3 { font-size: 20px; font-weight: 700; }
+.kds-ticket .age { padding: 1px 10px; border-radius: 999px; background: rgba(255, 255, 255, 0.22); font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.kds-ticket .meta { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 4px; font-size: 12px; opacity: 0.92; }
+.kds-ticket .meta .at { margin-left: auto; }
+.kds-ticket[data-level='done'] { opacity: 0.75; }
+.kds-ticket .note { margin: 12px 14px 0; padding: 8px 10px; border-radius: 8px; background: var(--ask-bg); color: var(--ask-ink); font-weight: 700; }
+.kds-ticket .note small { display: block; margin-bottom: 1px; font-size: 10px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; opacity: 0.8; }
+.kds-ticket ul { list-style: none; padding: 6px 14px 4px; }
+.kds-ticket li { display: grid; grid-template-columns: 1.8em 1fr; align-items: baseline; padding: 9px 0; border-bottom: 1px solid var(--line); font-size: 17px; }
+.kds-ticket li:last-child { border-bottom: 0; }
+.kds-ticket .qty { color: var(--ink-soft); font-weight: 700; font-variant-numeric: tabular-nums; }
+.kds-ticket .name { font-weight: 600; }
+.kds-ticket .diet { display: inline-block; width: 9px; height: 9px; margin-right: 8px; border-radius: 2px; background: var(--ok); }
+.kds-ticket .diet.nonveg { background: var(--late); }
+.kds-ticket .diet.egg { background: #e0b134; }
+.kds-ticket .req { grid-column: 2; margin-top: 2px; color: var(--ask-ink); font-size: 14px; font-style: italic; font-weight: 600; }
+.kds-ticket .stage { display: grid; gap: 4px; margin: 8px 14px 14px; color: var(--ink-soft); font-size: 11px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; }
+.kds-ticket .stage select {
+  width: 100%;
+  padding: 11px 38px 11px 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--card) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%236f655c' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat right 14px center;
+  color: var(--ink);
+  font: inherit;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
+  appearance: none;
+  cursor: pointer;
+}
+.kds-ticket .stage select:hover { border-color: var(--ink-soft); }
+.kds-ticket[data-level='ok'] .stage select, .kds-ticket[data-level='warn'] .stage select, .kds-ticket[data-level='late'] .stage select { border-color: var(--btn); }
+@media (max-width: 760px) {
+  .kds-bar { flex-wrap: wrap; gap: 10px 16px; padding: 62px 14px 10px; }
+  .kds-clock { display: none; }
+  .kds-tools { margin-left: auto; }
+  .kds-tabs, .kds-main { padding-left: 14px; padding-right: 14px; }
+  .kds-alert { margin: 10px 14px 0; }
+}
+@media (prefers-reduced-motion: reduce) { .kds, .kds.leaving, .kds-ticket.fresh { animation: none; } .kds-ticket.fresh { outline: 2px solid var(--btn); } }
+
+/* on its own port there are no app badges across the top, so the bar needs no room for them */
+.kds.standalone .kds-bar { padding-top: 14px; }
+@media (max-width: 760px) { .kds.standalone .kds-bar { padding-top: 12px; } }

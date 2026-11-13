@@ -8,7 +8,7 @@ import { menuContent } from './book/content.js'
 const VIEW_KEY = 'greeny.menuView'
 const savedView = () => {
   try {
-    return localStorage.getItem(VIEW_KEY) === 'book' ? 'book' : 'cards'
+    return 'cards' // the 3D book is no longer offered, whatever an older visit saved
   } catch {
     return 'cards'
   }
@@ -49,7 +49,7 @@ const norm = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').tr
 
 // the live menu, grouped into sections in menu order
 export async function loadMenuSections() {
-  const r = await fetch('/api/oasys/menu')
+  const r = await fetch('/api/oasys/menu?all=1', { cache: 'no-store' })
   if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || 'The menu could not be loaded')
   const { dishes = [] } = await r.json()
   const by = new Map()
@@ -173,14 +173,14 @@ function Mark({ type }) {
 // stays a strip under the cards). An order card, when one is open, takes that same place.
 const WIDE = 720
 const sidePanel = (ordering) => ordering && window.innerWidth > WIDE
-const panelGap = () => Math.round(Math.max(16, window.innerWidth * 0.03))
+const panelGap = () => Math.round(Math.max(24, window.innerWidth * 0.04))
 const panelWidth = () => Math.round(Math.min(320, Math.max(260, window.innerWidth * 0.26)))
 
 // the room on the left: an order card (matches .studio-order in studio.css), or else the order panel
 const orderRoom = (withOrder, ordering = false) => {
   const W = window.innerWidth
   if (W <= WIDE) return 0
-  if (withOrder) return Math.min(400, W * 0.42) + panelGap() * 2
+  if (withOrder) return panelWidth() + panelGap() * 2 // the order card takes the panel's place, the same size
   if (sidePanel(ordering)) return panelWidth() + panelGap() * 2
   return 0
 }
@@ -189,7 +189,7 @@ const orderRoom = (withOrder, ordering = false) => {
 // Its height never changes while the menu is open, so the cards never jump.
 const BAR_HEIGHT = 54
 const STRIP_HEIGHT = 58
-const TALK_HEIGHT = 44 // the "Talk to Greeny" button under the bar
+const TALK_HEIGHT = 44 // the "Talk to Greeny" button, under the bar on a narrow screen (beside it on a wide one)
 
 // The card's size on screen. Text inside is sized from the card's width, so it all scales together.
 const MAX_CARD_WIDTH = 270
@@ -210,27 +210,84 @@ function zoomSize(size, room = 0) {
 // the 3D book's height: everything above the menu bar
 function bookHeight(ordering, talk) {
   const strip = ordering && !sidePanel(ordering)
-  const dock = BAR_HEIGHT + (strip ? STRIP_HEIGHT + 10 : 0) + (talk ? TALK_HEIGHT + 10 : 0)
+  const dock = BAR_HEIGHT + (strip ? STRIP_HEIGHT + 10 : 0) + (talk && window.innerWidth <= WIDE ? TALK_HEIGHT + 10 : 0)
   return Math.round(Math.max(300, window.innerHeight - dock - 70))
 }
 
+// On a wide screen the menu bar and the Talk to Greeny button stand on the right of the carousel
+// (and the ring keeps clear of them); on a narrow one they sit under the cards.
+const dockRoom = () => (window.innerWidth > WIDE ? 392 : 0)
+
 function cardSize(withOrder, ordering, talk) {
-  const width = window.innerWidth - orderRoom(withOrder, ordering)
+  const width = window.innerWidth - orderRoom(withOrder, ordering) - dockRoom()
   // the order strip sits under the cards only on narrow screens; wide ones have the side panel
   const strip = ordering && !sidePanel(ordering)
-  const dock = BAR_HEIGHT + (strip ? STRIP_HEIGHT + 10 : 0) + (talk ? TALK_HEIGHT + 10 : 0)
+  const below = window.innerWidth <= WIDE // the bar and the talk button are under the cards
+  const dock = (below ? BAR_HEIGHT : 0) + (strip ? STRIP_HEIGHT + 10 : 0) + (talk && below ? TALK_HEIGHT + 10 : 0)
   const w = Math.max(190, Math.min(MAX_CARD_WIDTH, width * (withOrder || sidePanel(ordering) ? 0.42 : 0.55)))
   const h = Math.max(250, Math.min(w * 1.45, window.innerHeight - 150 - dock))
   return { w: Math.round(w), h: Math.round(h) }
+}
+
+// ---- pages: a card never scrolls. A section with too many dishes continues on the next card. ----
+// Everything inside a card is sized from its width (cqw), apart from a few pixel paddings, so how many
+// dishes fit is worked out in cqw from the card's shape. Names and notes that wrap are counted by an
+// average letter width. `slack` makes the estimate more cautious: after drawing, the carousel measures
+// the cards and raises it if any list still overflows.
+const GLYPH = { title: 5.2, name: 2.7, desc: 2.1, note: 2.1 } // average letter widths, in cqw
+export function paginate(sections, size, slack = 0) {
+  const px = (n) => (n * 100) / size.w // pixels to cqw
+  const inner = (100 * size.h) / size.w - px(32) - (6.5 + px(8)) // less the page number at the bottom
+  const textW = 100 - px(36)
+  const lines = (text, glyph, room) => Math.max(1, Math.ceil((String(text || '').length * glyph) / room))
+  const rowH = (d) => lines(d.name, GLYPH.name, textW - px(6) - 6 - 16 - 6.6) * 6.25 + 3.4 + (d.desc ? lines(d.desc, GLYPH.desc, textW - px(6) - 6.2) * 4.7 : 0)
+  const out = []
+  for (const sec of sections) {
+    const head = (note) => lines(sec.title, GLYPH.title, textW) * 9.2 + px(4) + 4.2 + (note ? lines(note, GLYPH.note, textW) * 5.6 + px(4) : 0) + px(10) + px(8)
+    const rows = sec.items.map(rowH)
+    const fits = (note) => Math.max(rowH({ name: 'x' }), (inner - head(note)) / (1 + slack))
+    const total = rows.reduce((a, b) => a + b, 0)
+    // greedy once to count the pages, then again with an even target so the last card is not nearly empty
+    const fill = (limitFor) => {
+      const pages = []
+      let cur = []
+      let used = 0
+      sec.items.forEach((d, i) => {
+        const limit = limitFor(pages.length)
+        if (cur.length && used + rows[i] > limit) (pages.push(cur), (cur = []), (used = 0))
+        cur.push(d)
+        used += rows[i]
+      })
+      if (cur.length) pages.push(cur)
+      return pages
+    }
+    let pages = fill((n) => fits(n === 0 ? sec.note : ''))
+    if (pages.length > 1) {
+      const target = total / pages.length
+      const even = fill((n) => Math.min(fits(n === 0 ? sec.note : ''), Math.max(target * 1.15, 16)))
+      if (even.length === pages.length) pages = even
+    }
+    pages.forEach((items, k) => out.push({ ...sec, items, part: k + 1, parts: pages.length, total: sec.items.length, note: k === 0 ? sec.note : '' }))
+    if (!pages.length) out.push({ ...sec, part: 1, parts: 1, total: 0 })
+  }
+  return out
 }
 
 // `onOrder(items)` (when ordering is on) lets the guest order by hand: tapping a dish puts it in the
 // order strip, and "Review order" sends it through the same check-and-confirm as a spoken order.
 // `orderStage` is the order card's stage, so the strip empties once the round has gone to the kitchen.
 // `onTalk` (when the voice chat is off) puts a "Talk to Greeny" button under the menu bar.
-export default function MenuCarousel({ sections, section: ask, withOrder = false, onClose, onOrder, orderStage, onTalk }) {
+export default function MenuCarousel({ sections: allSections, section: ask, withOrder = false, onClose, onOrder, orderStage, onTalk }) {
   // `ask` is { name, at }: a new `at` turns the ring again even to the same section
   const section = ask?.name ?? null
+  const ordering = !!onOrder
+  const talk = !!onTalk
+  const [size, setSize] = useState(() => cardSize(withOrder, ordering, talk))
+  // the cards, with long sections split over several (never scrolled): `sections` below are these pages
+  const [slack, setSlack] = useState(0)
+  const rootRef = useRef(null)
+  const stageRef = useRef(null)
+  const sections = useMemo(() => paginate(allSections, size, slack), [allSections, size.w, size.h, slack])
   const COUNT = Math.max(1, sections.length)
   const STEP = 360 / COUNT // degrees between neighbouring cards
   // `pos` counts cards turned and is never wrapped, so the ring always takes the short way round
@@ -243,9 +300,6 @@ export default function MenuCarousel({ sections, section: ask, withOrder = false
   const [roundNote, setRoundNote] = useState('') // a special request for the whole round
   const [noteFor, setNoteFor] = useState(null) // the request editor: a dish id, 'round', or closed
   const reviewed = useRef(false) // the tray is the round on the order card, waiting for Confirm
-  const ordering = !!onOrder
-  const talk = !!onTalk
-  const [size, setSize] = useState(() => cardSize(withOrder, ordering, talk))
   const [leaving, setLeaving] = useState(false)
   const dragState = useRef(null)
   const moved = useRef(false)
@@ -260,10 +314,19 @@ export default function MenuCarousel({ sections, section: ask, withOrder = false
       localStorage.setItem(VIEW_KEY, v)
     } catch {}
   }
-  const book = useMemo(() => menuContent(sections), [sections])
+  const book = useMemo(() => menuContent(allSections), [allSections])
   const [bookAt, setBookAt] = useState(null) // { page, at }: turn the book to a section
   const [restaurant, setRestaurant] = useState('')
   const lastTap = useRef({ i: -1, t: 0 })
+
+  // a dish in the order sold out while it was on screen (live from the till): take it out and say so
+  useEffect(() => {
+    const out = new Set(sections.flatMap((sec) => sec.items.filter((d) => d.soldOut).map((d) => d.id)))
+    const gone = tray.filter((t) => out.has(t.id))
+    if (!gone.length) return
+    setTray((tr) => tr.filter((t) => !out.has(t.id)))
+    setTrayMsg(`${gone.map((t) => t.name).join(', ')} just sold out and was taken off your order.`)
+  }, [sections]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // the round the tray became was confirmed: start a fresh tray. Cancelled: keep it to change.
   useEffect(() => {
@@ -288,6 +351,16 @@ export default function MenuCarousel({ sections, section: ask, withOrder = false
   // Dragging a dish onto "Your order" adds it, like a tap. A drag starts once the pointer moves
   // sideways (up and down still scrolls the list); a small chip follows it, and the order lights up.
   const stripRef = useRef(null)
+  const [panelPos, setPanelPos] = useState({ x: 0, y: 0 }) // where the order panel was dragged to
+  const startPanelDrag = (e) => {
+    if (e.button !== undefined && e.button !== 0) return
+    const sx = e.clientX, sy = e.clientY, ox = panelPos.x, oy = panelPos.y
+    const move = (ev) => setPanelPos({ x: ox + ev.clientX - sx, y: oy + ev.clientY - sy })
+    const up = () => (window.removeEventListener('pointermove', move), window.removeEventListener('pointerup', up))
+    window.addEventListener('pointermove', move)
+    window.addEventListener('pointerup', up)
+    e.preventDefault()
+  }
   const [dragDish, setDragDish] = useState(null) // { dish, x, y, over }
   const [dropped, setDropped] = useState(0) // bumps to flash the order when a dish lands
   const skipClick = useRef(false) // the click that ends a drag must not add the dish again
@@ -353,8 +426,39 @@ export default function MenuCarousel({ sections, section: ask, withOrder = false
   }
 
   const active = ((pos % COUNT) + COUNT) % COUNT
-  const radius = Math.round(size.w / 2 / Math.tan(Math.PI / COUNT)) + 34
+  // the ring is sized so neighbouring cards sit a clear gap apart (a tenth of a card's width), however many there are
+  const gap = Math.round(size.w * 0.1)
+  const radius = Math.round((size.w + gap) / 2 / Math.tan(Math.PI / Math.max(COUNT, 3)))
   const turn = useCallback((by) => setPos((p) => p + by), [])
+
+  // the mouse wheel over the carousel turns the cards: down for the next, up for the previous. A turn needs a
+  // clear flick (so a trackpad's tiny movements do not fly through the cards) and then waits for the card to land.
+  useEffect(() => {
+    const el = stageRef.current
+    if (!el || zoom !== null) return undefined
+    let acc = 0
+    let lockedUntil = 0
+    let reset = 0
+    const onWheel = (e) => {
+      e.preventDefault() // the page itself never scrolls here
+      const now = performance.now()
+      if (now < lockedUntil) return
+      const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1
+      acc += (Math.abs(e.deltaY) >= Math.abs(e.deltaX) ? e.deltaY : e.deltaX) * unit
+      clearTimeout(reset)
+      reset = setTimeout(() => (acc = 0), 160)
+      if (Math.abs(acc) >= 40) {
+        turn(acc > 0 ? 1 : -1)
+        acc = 0
+        lockedUntil = now + 320
+      }
+    }
+    el.addEventListener('wheel', onWheel, { passive: false })
+    return () => {
+      el.removeEventListener('wheel', onWheel)
+      clearTimeout(reset)
+    }
+  }, [turn, zoom])
   // the short way round from the front card to card i
   const turnTo = useCallback((i) => {
     setPos((p) => {
@@ -367,7 +471,7 @@ export default function MenuCarousel({ sections, section: ask, withOrder = false
   useEffect(() => {
     const i = findSection(sections, section)
     if (i >= 0) turnTo(i)
-  }, [ask, sections, turnTo]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [ask, turnTo]) // eslint-disable-line  (not `sections`: a live sold-out refresh must not turn the card back) react-hooks/exhaustive-deps
 
   // the section in front (turned to by voice or the ‹ › buttons) opens the book at its page;
   // switching to the book starts at its cover
@@ -404,6 +508,22 @@ export default function MenuCarousel({ sections, section: ask, withOrder = false
   }, [onClose])
 
   useEffect(() => setSize(cardSize(withOrder, ordering, talk)), [withOrder, ordering, talk])
+  // never scroll: when the card's shape changes, start from the plain estimate; then measure the drawn cards
+  // and, if a list still overflows (a long name wrapped, a font loaded late), split the sections a little finer
+  useEffect(() => setSlack(0), [size.w, size.h])
+  useEffect(() => {
+    let live = true
+    const check = () => {
+      if (!live || !rootRef.current) return
+      const over = [...rootRef.current.querySelectorAll('.mc-card .mc-list')].some((ul) => ul.scrollHeight > ul.clientHeight + 2)
+      if (over) setSlack((v) => (v < 0.7 ? Math.round((v + 0.06) * 100) / 100 : v))
+    }
+    check()
+    document.fonts?.ready.then(check)
+    return () => {
+      live = false
+    }
+  }, [sections, slack, size.w, size.h])
   useEffect(() => {
     const onResize = () => setSize(cardSize(withOrder, ordering, talk))
     const onKey = (e) => {
@@ -473,12 +593,10 @@ export default function MenuCarousel({ sections, section: ask, withOrder = false
   const cardInner = (sec, i, isActive) => (
     <div className="mc-inner">
       <header className="mc-head">
-        <p className="mc-count">
-          {i + 1} / {COUNT}
-        </p>
         <h2>{sec.title}</h2>
         <Flourish />
         {sec.note && <p className="mc-note">{sec.note}</p>}
+        {sec.parts > 1 && !sec.note && <p className="mc-note">Page {sec.part} of {sec.parts}</p>}
       </header>
       <ul className="mc-list" tabIndex={isActive ? 0 : -1}>
         {sec.items.map((d) => {
@@ -527,6 +645,9 @@ export default function MenuCarousel({ sections, section: ask, withOrder = false
           )
         })}
       </ul>
+      <footer className="mc-folio" aria-label={`Card ${i + 1} of ${COUNT}`}>
+        {i + 1} / {COUNT}
+      </footer>
     </div>
   )
 
@@ -535,9 +656,12 @@ export default function MenuCarousel({ sections, section: ask, withOrder = false
 
   return (
     <div
+      ref={rootRef}
       className={`menu-carousel${leaving ? ' leaving' : ''}${withOrder ? ' with-order' : ''}${sidePanel(ordering) ? ' with-panel' : ''}`}
       style={{
         '--order-room': `${orderRoom(withOrder, ordering)}px`,
+        '--dock-room': `${dockRoom()}px`,
+        '--card-h': `${size.h}px`,
         '--panel-w': `${panelWidth()}px`,
         '--panel-gap': `${panelGap()}px`,
       }}
@@ -563,6 +687,7 @@ export default function MenuCarousel({ sections, section: ask, withOrder = false
       ) : (
         <>
         <div
+          ref={stageRef}
           className={`mc-stage${dragging ? ' dragging' : ''}`}
           style={{ height: size.h + 40 }}
           onPointerDown={onPointerDown}
@@ -582,7 +707,7 @@ export default function MenuCarousel({ sections, section: ask, withOrder = false
               const opacity = distance <= 1 ? 1 : Math.max(0, 1 - (distance - 1) * 2)
               return (
                 <article
-                  key={sec.title}
+                  key={`${sec.title}-${sec.part}`}
                   className={`mc-card${isActive ? ' active' : ''}`}
                   style={{
                     transform: `rotateY(${i * STEP}deg) translateZ(${radius}px)`,
@@ -609,7 +734,7 @@ export default function MenuCarousel({ sections, section: ask, withOrder = false
           <div className="mc-zoom" onClick={(e) => e.target === e.currentTarget && setZoom(null)}>
             <article
               className="mc-card mc-card-zoom active"
-              style={zoomSize(size, !withOrder && sidePanel(ordering) ? orderRoom(false, ordering) : 0)}
+              style={zoomSize(size, (!withOrder && sidePanel(ordering) ? orderRoom(false, ordering) : 0) + dockRoom())}
               role="dialog"
               aria-label={`${sections[zoom].title}, enlarged`}
               onDoubleClick={(e) => !e.target.closest('.mc-pick') && setZoom(null)}
@@ -630,27 +755,40 @@ export default function MenuCarousel({ sections, section: ask, withOrder = false
             ref={stripRef}
             className={`mc-strip${tray.length ? '' : ' empty'}${zoom !== null ? ' above-zoom' : ''}${dragDish ? ' drop-target' : ''}${dragDish?.over ? ' drop-over' : ''}`}
             aria-label="Your order"
+            style={{ translate: `${panelPos.x}px ${panelPos.y}px` }}
           >
             {/* a short glow each time a dish is dropped in */}
             {dropped > 0 && <span key={dropped} className="mc-drop-flash" aria-hidden="true" />}
             {/* the heading shows only in the side panel */}
-            <strong className="mc-strip-title">Your order</strong>
+            <strong
+              className="mc-strip-title"
+              onPointerDown={startPanelDrag}
+              onDoubleClick={() => setPanelPos({ x: 0, y: 0 })}
+              title="Drag to move · double-click to reset"
+            >
+              Your order
+            </strong>
             {tray.length === 0 ? (
               <p className="mc-strip-empty">Tap a dish to add it to your order</p>
             ) : (
               <>
-                {/* a note for the kitchen about the whole round: a square box, first in the order */}
+                {/* a note for the kitchen about the whole round: a round button; hover or focus shows what it holds */}
                 <div className="mc-strip-note">
                   <button
                     type="button"
-                    className={`mc-strip-name${roundNote ? ' noted' : ''}`}
-                    title={roundNote ? `Kitchen note: ${roundNote}` : 'Add a note for the kitchen about the whole order'}
+                    className={`mc-strip-name mc-note-btn${roundNote ? ' noted' : ''}`}
                     aria-label={roundNote ? `Kitchen note: ${roundNote}. Change it` : 'Add a note for the kitchen'}
                     onClick={() => setNoteFor((n) => (n === 'round' ? null : 'round'))}
                     disabled={sending}
                   >
-                    <span>{roundNote ? 'Kitchen note' : '+ Kitchen note'}</span>
-                    {roundNote && <small>{roundNote}</small>}
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16v4z" />
+                      <path d="M13.5 6.5l4 4" />
+                    </svg>
+                    <span className="mc-note-tip" role="tooltip">
+                      <strong>Kitchen note</strong>
+                      <em>{roundNote || 'Tap to add a note for the kitchen about the whole order'}</em>
+                    </span>
                   </button>
                 </div>
                 <ul
@@ -729,39 +867,32 @@ export default function MenuCarousel({ sections, section: ask, withOrder = false
             )}
           </section>
         )}
-        <nav className="mc-controls" aria-label="Menu navigation">
-          <div className="mc-turn">
-            <button type="button" className="mc-arrow" onClick={() => turn(-1)} aria-label="Previous section">
-              ‹
+        <div className="mc-bar-row">
+          <nav className="mc-controls" aria-label="Menu navigation">
+            <div className="mc-turn">
+              <button type="button" className="mc-arrow" onClick={() => turn(-1)} aria-label="Previous section">
+                ‹
+              </button>
+              <span className="mc-label" aria-live="polite">
+                {current.title}
+                <span className="mc-label-count">{current.total ?? current.items.length} dishes{current.parts > 1 ? ` · ${current.part}/${current.parts}` : ''}</span>
+              </span>
+              <button type="button" className="mc-arrow" onClick={() => turn(1)} aria-label="Next section">
+                ›
+              </button>
+            </div>
+            <span className="mc-divider" aria-hidden="true" />
+            <button type="button" className="mc-pill mc-close-x" onClick={close} aria-label="Close the menu" title="Close">
+              ✕
             </button>
-            <span className="mc-label" aria-live="polite">
-              {current.title}
-              <span className="mc-label-count">{current.items.length} dishes</span>
-            </span>
-            <button type="button" className="mc-arrow" onClick={() => turn(1)} aria-label="Next section">
-              ›
+          </nav>
+          {onTalk && (
+            <button type="button" className="mc-pill mc-talk" onClick={onTalk}>
+              <Icon name="mic" size={17} />
+              <span>Talk to Greeny</span>
             </button>
-          </div>
-          <span className="mc-divider" aria-hidden="true" />
-          <button
-            type="button"
-            className="mc-pill mc-view"
-            onClick={() => setView(view === 'book' ? 'cards' : 'book')}
-            aria-pressed={view === 'book'}
-            title={view === 'book' ? 'Show the menu as cards' : 'Show the menu as a book'}
-          >
-            {view === 'book' ? 'Cards' : 'Book'}
-          </button>
-          <button type="button" className="mc-pill" onClick={close}>
-            Close
-          </button>
-        </nav>
-        {onTalk && (
-          <button type="button" className="mc-pill mc-talk" onClick={onTalk}>
-            <Icon name="mic" size={17} />
-            <span>Talk to Greeny</span>
-          </button>
-        )}
+          )}
+        </div>
       </div>
     </div>
   )

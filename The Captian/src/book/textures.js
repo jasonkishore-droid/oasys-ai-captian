@@ -9,8 +9,9 @@ const CH = Math.round((CW * PAGE_H) / PAGE_W)
 
 const DISPLAY = "'Cinzel', 'Trajan Pro', Georgia, serif"
 const SERIF = "'Cormorant Garamond', Garamond, Georgia, serif"
+const TITLE = "'Limelight', 'Cormorant Garamond', Georgia, serif" // the section titles
 
-export const FONTS_TO_LOAD = ['700 40px Cinzel', '400 40px Cinzel', '500 40px "Cormorant Garamond"', '600 40px "Cormorant Garamond"', 'italic 500 40px "Cormorant Garamond"', '700 40px "Cormorant Garamond"']
+export const FONTS_TO_LOAD = ['700 40px Cinzel', '400 40px Cinzel', '500 40px "Cormorant Garamond"', '600 40px "Cormorant Garamond"', 'italic 500 40px "Cormorant Garamond"', '700 40px "Cormorant Garamond"', '400 40px Limelight']
 
 // ---------- colour helpers ----------
 const shade = (hex, amt) => {
@@ -441,8 +442,8 @@ export function contentPageTexture(o, text, number, side, anisotropy) {
       if (y > 140) y += 18
       ctx.fillStyle = o.accentColor
       ctx.textAlign = 'center'
-      const s = fit(ctx, head, 700, SERIF, 52, width)
-      ctx.font = `700 ${s}px ${SERIF}`
+      const s = fit(ctx, head, 400, TITLE, 50, width)
+      ctx.font = `400 ${s}px ${TITLE}`
       ctx.fillText(head, (left + right) / 2, y + 30)
       drawFlourish(ctx, (left + right) / 2, y + 58, 180, o.accentColor)
       y += 92

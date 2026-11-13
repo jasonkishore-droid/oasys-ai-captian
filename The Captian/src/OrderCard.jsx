@@ -9,6 +9,7 @@
 //   receipt_sent     done
 //   cancelled, problem
 import { useEffect, useState } from 'react'
+import UpiPopup from './UpiPopup.jsx'
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const rupees = (n) => `₹${Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`
@@ -52,11 +53,38 @@ function Items({ order, totalLabel = 'Total', prices = true }) {
   )
 }
 
+// the payment buttons are icons; hovering one shows its name
+const iconProps = { width: 24, height: 24, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.8, strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': true }
+const PAY_ICON = {
+  cash: (
+    <svg {...iconProps}>
+      <rect x="2" y="6" width="20" height="12" rx="2" />
+      <circle cx="12" cy="12" r="2.8" />
+      <path d="M6 9.5v.01M18 14.5v.01" strokeWidth="2.4" />
+    </svg>
+  ),
+  upi: (
+    <svg {...iconProps}>
+      <rect x="3" y="3" width="7" height="7" rx="1" />
+      <rect x="14" y="3" width="7" height="7" rx="1" />
+      <rect x="3" y="14" width="7" height="7" rx="1" />
+      <path d="M14 14h3v3h-3zM20 14v.01M14 20h3M20 17v4" />
+    </svg>
+  ),
+  card: (
+    <svg {...iconProps}>
+      <rect x="2" y="5" width="20" height="14" rx="2" />
+      <path d="M2 10h20M6 15h4" />
+    </svg>
+  ),
+}
+
 // onAction(tool, args) runs a Greeny ordering tool (same as the guest saying it)
-export default function OrderCard({ order, onAction, onClose }) {
+export default function OrderCard({ order, onAction, onClose, onBack }) {
   const [email, setEmail] = useState(order.email || '')
   const [busy, setBusy] = useState(false)
-  useEffect(() => { setEmail(order.email || ''); setBusy(false) }, [order])
+  const [qr, setQr] = useState(false) // the UPI "scan to pay" pop-up
+  useEffect(() => { setEmail(order.email || ''); setBusy(false); setQr(false) }, [order])
   const typed = email.trim()
   const emailBad = typed !== '' && !EMAIL_RE.test(typed)
   const act = (tool, args) => { setBusy(true); onAction(tool, args) }
@@ -117,9 +145,18 @@ export default function OrderCard({ order, onAction, onClose }) {
   }
 
   if (order.stage === 'payment') {
+    // Cash and Card close the tab at once; UPI first shows the QR to scan (and closes once they say they have paid)
     const pay = (label, method) => (
-      <button key={method} className="btn primary sm" disabled={busy} onClick={() => act('close_tab', { payment_method: method })}>
-        {label}
+      <button
+        key={method}
+        data-method={method}
+        className="btn primary sm pay-btn"
+        aria-label={`Pay by ${label}`}
+        disabled={busy}
+        onClick={() => (method === 'upi' ? setQr(true) : act('close_tab', { payment_method: method }))}
+      >
+        {PAY_ICON[method]}
+        <span className="pay-tip" role="tooltip">{label}</span>
       </button>
     )
     return (
@@ -127,22 +164,31 @@ export default function OrderCard({ order, onAction, onClose }) {
         <strong>Close tab · How will you pay?</strong>
         <Items order={order} />
         <p>Say “cash”, “UPI” or “card”, or tap one.</p>
-        <div className="note-actions">{busy ? <span>Paying…</span> : [pay('Cash', 'cash'), pay('UPI', 'upi'), pay('Card', 'card')]}</div>
+        <div className="note-actions">{busy && !qr ? <span>Paying…</span> : [pay('Cash', 'cash'), pay('UPI', 'upi'), pay('Card', 'card')]}</div>
+        {qr && (
+          <UpiPopup
+            amount={order.total}
+            note={`${order.table ? `Table ${order.table} ` : ''}tab`.trim()}
+            busy={busy}
+            onBack={() => setQr(false)}
+            onPaid={() => act('close_tab', { payment_method: 'upi' })}
+          />
+        )}
       </div>
     )
   }
 
   if (order.stage === 'placed') {
     return (
-      <div className="note surface order-note" role="dialog" aria-label="Paid">
+      <div className="note surface order-note receipt-card" role="dialog" aria-label="Paid">
         <strong>✓ Paid · tab closed · {order.bill_no}</strong>
-        <p>
+        <p className="rc-total">
           Total {rupees(order.total)}
           {where}
         </p>
         <form
+          className="rc-form"
           onSubmit={(e) => { e.preventDefault(); if (typed && !emailBad) act('set_receipt_email', { email: typed }) }}
-          style={{ display: 'grid', gap: 4, margin: '8px 0 0', fontSize: 13 }}
         >
           <label htmlFor="oasys-receipt-email">Want an e-receipt?</label>
           <input
@@ -154,22 +200,20 @@ export default function OrderCard({ order, onAction, onClose }) {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             aria-invalid={emailBad}
-            style={{
-              padding: '8px 10px', borderRadius: 10, font: 'inherit', color: 'inherit', background: 'transparent',
-              border: `1px solid ${emailBad ? danger : 'currentColor'}`,
-            }}
+            style={emailBad ? { borderColor: danger } : undefined}
           />
-          {emailBad && <span style={{ color: danger }}>That doesn’t look like an email address.</span>}
-          {order.error && <span style={{ color: danger }}>{order.error}</span>}
+          {emailBad && <span className="rc-error">That doesn’t look like an email address.</span>}
+          {order.error && <span className="rc-error">{order.error}</span>}
           {order.printed ? (
-            <span>✓ Paper receipt printed</span>
+            <span className="rc-done">✓ Paper receipt printed</span>
           ) : (
             <button className="btn sm" type="button" disabled={busy} onClick={() => act('print_receipt', { guest_asked: true })}>
               Print paper receipt
             </button>
           )}
-          <div className="note-actions">
-            <button className="btn primary sm" type="submit" disabled={!typed || emailBad || busy}>Next</button>
+          <div className="note-actions rc-actions">
+            <button className="btn primary sm rc-next" type="submit" disabled={!typed || emailBad || busy}>Next</button>
+            <button className="btn sm" type="button" onClick={onClose}>‹ Go back</button>
             <button className="btn sm" type="button" onClick={onClose}>No thanks</button>
           </div>
         </form>
@@ -214,6 +258,12 @@ export default function OrderCard({ order, onAction, onClose }) {
       {(order.problems || []).map((p) => <p key={p} style={{ color: danger }}>{p}</p>)}
       <p>Say “yes” or tap Confirm. It goes on your tab.</p>
       <div className="note-actions">
+        {/* back to the menu with the dishes still in the order, to change them: nothing is cancelled or said */}
+        {onBack && (
+          <button className="btn sm" disabled={busy} onClick={onBack}>
+            ‹ Go back
+          </button>
+        )}
         <button className="btn primary sm" disabled={busy} onClick={() => act('confirm_order', { confirm: true })}>
           {busy ? 'Sending…' : 'Confirm'}
         </button>

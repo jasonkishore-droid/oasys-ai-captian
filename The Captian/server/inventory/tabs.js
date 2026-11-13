@@ -13,6 +13,8 @@ import { dirname } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { InventoryError } from './store.js'
 
+export const KITCHEN_STAGES = ['new', 'preparing', 'ready', 'served']
+
 export function openTabs(file) {
   mkdirSync(dirname(file), { recursive: true })
   const db = new DatabaseSync(file)
@@ -43,6 +45,11 @@ export function openTabs(file) {
   // a special request for the whole round ("serve the starters first"); added to older databases too.
   // Requests for one dish ride on its line in items: { ..., note: 'less oil' }.
   if (!db.prepare('PRAGMA table_info(rounds)').all().some((c) => c.name === 'note')) db.exec('ALTER TABLE rounds ADD COLUMN note TEXT')
+  // the kitchen's view of a round: new (just in) -> preparing -> ready -> served
+  if (!db.prepare('PRAGMA table_info(rounds)').all().some((c) => c.name === 'kitchen_status')) {
+    db.exec("ALTER TABLE rounds ADD COLUMN kitchen_status TEXT NOT NULL DEFAULT 'new'")
+    db.exec('ALTER TABLE rounds ADD COLUMN ready_at TEXT')
+  }
   const get = (sql, ...p) => db.prepare(sql).get(...p) ?? null
   const all = (sql, ...p) => db.prepare(sql).all(...p)
   const run = (sql, ...p) => db.prepare(sql).run(...p)
@@ -118,5 +125,31 @@ export function openTabs(file) {
     }
   }
 
-  return { session, openFor, open, addRound, close, voidSession, reserved, roundsSince, shutdown: () => db.close() }
+  // the Kitchen Display: tickets from the last 12 hours that are still cooking, plus those ready in the last 30 minutes and those served in the last 3 hours
+  function board() {
+    const cut = (ms) => new Date(Date.now() - ms).toISOString()
+    const rows = all(
+      `SELECT r.id, r.session_id, r.round_no, r.items, r.note, r.created_at, r.kitchen_status AS status, r.ready_at, s.table_no, s.customer
+       FROM rounds r JOIN sessions s ON s.id = r.session_id
+       WHERE s.status != 'void' AND r.created_at > ? AND (r.kitchen_status IN ('new', 'preparing') OR (r.kitchen_status = 'ready' AND r.ready_at > ?) OR (r.kitchen_status = 'served' AND r.ready_at > ?)) ORDER BY r.id`,
+      cut(12 * 3600e3), cut(30 * 60e3), cut(3 * 3600e3)
+    )
+    return {
+      tickets: rows.map(({ note, items, ...r }) => ({
+        ...r,
+        kitchen_note: note || null,
+        items: JSON.parse(items).map(({ dish_id, name, diet, quantity, note }) => ({ dish_id, name, diet, quantity, note: note || null })),
+      })),
+    }
+  }
+
+  function setKitchenStatus(roundId, status) {
+    if (!KITCHEN_STAGES.includes(status)) throw new InventoryError(400, `status must be one of: ${KITCHEN_STAGES.join(', ')}`)
+    // the time it became ready is kept when it is served (it is hidden then), and cleared if it goes back to cooking
+    const readyAt = status === 'ready' ? now() : status === 'served' ? get('SELECT ready_at FROM rounds WHERE id = ?', roundId)?.ready_at || now() : null
+    const r = run('UPDATE rounds SET kitchen_status = ?, ready_at = ? WHERE id = ?', status, readyAt, roundId)
+    if (!r.changes) throw new InventoryError(404, 'Ticket not found')
+  }
+
+  return { session, openFor, open, addRound, close, voidSession, reserved, roundsSince, board, setKitchenStatus, shutdown: () => db.close() }
 }

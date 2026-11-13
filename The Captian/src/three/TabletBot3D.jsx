@@ -512,6 +512,9 @@ export default function TabletBot3D({ mood = 'idle', speaking = false, busy = fa
       const w = x1 - x0
       let fade = f.side * f.glow
       const p = props.current
+      // on the screen-only view the light theme gives a white screen, so the card's text turns dark
+      const lightScreen = screenOnly && p.theme === 'light'
+      const ink = (alpha) => (lightScreen ? `rgba(24,24,28,${alpha})` : `rgba(255,255,255,${alpha})`)
       const busyNow = billBusy === order
       ctx.save()
       ctx.setTransform(S, 0, 0, S, 0, 0)
@@ -523,7 +526,7 @@ export default function TabletBot3D({ mood = 'idle', speaking = false, busy = fa
       const font = (size, weight) => (ctx.font = `${weight} ${size}px ${FONT}`)
       const line = (left, right, { size = 13, weight = 500, alpha = 0.92, col } = {}) => {
         font(size, weight)
-        ctx.fillStyle = col || `rgba(255,255,255,${alpha})`
+        ctx.fillStyle = col || ink(alpha)
         ctx.textAlign = 'right'
         const rw = right ? ctx.measureText(right).width : 0
         if (right) ctx.fillText(right, x1, y)
@@ -539,7 +542,7 @@ export default function TabletBot3D({ mood = 'idle', speaking = false, busy = fa
         }
       }
       const rule = (dash) => {
-        ctx.strokeStyle = 'rgba(255,255,255,0.35)'
+        ctx.strokeStyle = ink(0.35)
         ctx.lineWidth = 1
         ctx.setLineDash(dash ? [3, 3] : [])
         ctx.beginPath()
@@ -566,10 +569,10 @@ export default function TabletBot3D({ mood = 'idle', speaking = false, busy = fa
             ctx.fill()
             ctx.fillStyle = '#000'
           } else {
-            ctx.strokeStyle = 'rgba(255,255,255,0.5)'
+            ctx.strokeStyle = ink(0.5)
             ctx.lineWidth = 1.5
             ctx.stroke()
-            ctx.fillStyle = 'rgba(255,255,255,0.95)'
+            ctx.fillStyle = ink(0.95)
           }
           font(14, 600)
           ctx.textAlign = 'center'
@@ -581,13 +584,13 @@ export default function TabletBot3D({ mood = 'idle', speaking = false, busy = fa
       }
       const hint = (text, by) => {
         font(11, 500)
-        ctx.fillStyle = 'rgba(255,255,255,0.6)'
+        ctx.fillStyle = ink(0.6)
         ctx.textAlign = 'left'
         ctx.fillText(fit(ctx, text, w), x0, by - 10)
       }
       const act = (tool, args) => () => p.onOrderAction?.(tool, args)
       const close = { label: 'Dismiss', run: () => p.onClose?.(), act: false }
-      const red = '#ff8a84'
+      const red = lightScreen ? '#c8392b' : '#ff8a84'
 
       // the item lines, each with its special request for the kitchen ("↳ less oil") under it, then the
       // round's request; `room` rows at most, the rest summed up as "+ n more"
@@ -694,12 +697,12 @@ export default function TabletBot3D({ mood = 'idle', speaking = false, busy = fa
         const bad = typed !== '' && !EMAIL_RE.test(typed)
         ctx.beginPath()
         ctx.roundRect(x0, y, w, 34, 10)
-        ctx.strokeStyle = bad ? red : focused ? color : 'rgba(255,255,255,0.55)'
+        ctx.strokeStyle = bad ? red : focused ? color : ink(0.55)
         ctx.lineWidth = focused ? 2 : 1.2
         ctx.stroke()
         font(13, 500)
         ctx.textAlign = 'left'
-        ctx.fillStyle = value ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.4)'
+        ctx.fillStyle = value ? ink(0.95) : ink(0.4)
         let txt = value || (focused ? '' : 'Tap to type your email')
         while (txt.length > 1 && ctx.measureText(txt).width > w - 22) txt = txt.slice(1) // keep the end in view while typing
         ctx.fillText(txt, x0 + 10, y + 22)
@@ -722,11 +725,11 @@ export default function TabletBot3D({ mood = 'idle', speaking = false, busy = fa
           ctx.globalAlpha = fade * (busyNow ? 0.45 : 1)
           ctx.beginPath()
           ctx.roundRect(x0, y, w, 34, 12)
-          ctx.strokeStyle = 'rgba(255,255,255,0.5)'
+          ctx.strokeStyle = ink(0.5)
           ctx.lineWidth = 1.5
           ctx.stroke()
           font(14, 600)
-          ctx.fillStyle = 'rgba(255,255,255,0.95)'
+          ctx.fillStyle = ink(0.95)
           ctx.textAlign = 'center'
           ctx.fillText(busyNow ? 'Working…' : 'Print paper receipt', x0 + w / 2, y + 22)
           ctx.globalAlpha = fade
@@ -796,7 +799,7 @@ export default function TabletBot3D({ mood = 'idle', speaking = false, busy = fa
         buttons = []
       }
       ctx.globalAlpha = fade
-      ctx.fillStyle = 'rgba(255,255,255,0.06)'
+      ctx.fillStyle = ink(0.06)
       ctx.beginPath()
       ctx.roundRect(x0 - 12, top, w + 24, bottom - top, 16)
       ctx.fill()

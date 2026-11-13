@@ -20,11 +20,18 @@ function Items({ order, totalLabel = 'Total', prices = true }) {
   return (
     <div style={{ margin: '8px 0', display: 'grid', gap: 4, textAlign: 'left' }}>
       {(order.lines || []).map((l, i) => (
-        <div key={l.dish_id ?? i} style={row}>
-          <span>{l.quantity} × {l.name}</span>
-          {prices && <span>{rupees(l.line_total)}</span>}
+        <div key={`${l.dish_id}-${i}`}>
+          <div style={row}>
+            <span>{l.quantity} × {l.name}</span>
+            {prices && <span>{rupees(l.line_total)}</span>}
+          </div>
+          {/* a special request for the kitchen, e.g. "less oil" */}
+          {l.note && <div style={{ fontSize: '0.85em', fontStyle: 'italic', opacity: 0.75, paddingLeft: 16 }}>↳ {l.note}</div>}
         </div>
       ))}
+      {order.kitchen_note && (
+        <div style={{ fontSize: '0.85em', fontStyle: 'italic', opacity: 0.75 }}>Kitchen note: {order.kitchen_note}</div>
+      )}
       {prices && (order.tax > 0 || order.service_charge > 0) && (
         <div style={{ ...row, opacity: 0.75, borderTop: '1px dashed currentColor', paddingTop: 4 }}>
           <span>Subtotal</span><span>{rupees(order.subtotal)}</span>

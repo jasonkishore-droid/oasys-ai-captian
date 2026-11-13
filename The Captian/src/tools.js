@@ -83,6 +83,27 @@ async function oasys(path, body) {
   }
 }
 
+// Special requests for the kitchen ("less oil", "no onion"): per dish (a line's note) or for the
+// whole round (kitchen_note). Same limits as the server (server/inventory/orders.js).
+const NOTE_MAX = 100
+const KITCHEN_NOTE_MAX = 200
+const cleanNote = (s, max) => String(s ?? '').replace(/\s+/g, ' ').trim().slice(0, max)
+// "less oil" + "no onion" -> "less oil; no onion" (a request already there is not repeated)
+const joinNotes = (a, b, max = KITCHEN_NOTE_MAX) => {
+  const parts = [a, b].map((s) => cleanNote(s, max)).filter(Boolean)
+  const seen = new Set()
+  return parts.filter((p) => !seen.has(p.toLowerCase()) && seen.add(p.toLowerCase())).join('; ').slice(0, max)
+}
+// what the server needs to re-check a round: the dish, how many, and its request
+const itemsOf = (lines) => lines.map((l) => ({ dish_id: l.dish_id, quantity: l.quantity, ...(l.note && { note: l.note }) }))
+// does "dosa" / "the masala dosa" name this dish ("Masala Dosa")?
+const words = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().split(' ').filter((w) => w && w !== 'the')
+const namesDish = (said, dish) => {
+  const d = words(dish)
+  const s = words(said)
+  return s.length > 0 && s.every((w) => d.some((x) => x === w || x.startsWith(w) || w.startsWith(x)))
+}
+
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 // "Jason Kishore 82 at gmail dot com" -> "jasonkishore82@gmail.com"
 const normEmail = (s) =>
@@ -459,16 +480,27 @@ export function createToolRunner(ctx) {
 
     // A round for the table's open tab: matched, checked and priced, then shown for the guest's yes.
     // Nothing is billed here: rounds pile up on the tab through the meal and are paid at close_tab.
-    async place_order({ items, table, guest_name, guest_email, replace } = {}) {
+    async place_order({ items, table, guest_name, guest_email, replace, kitchen_note } = {}) {
       if (!ctx.current.oasysConnected()) return OASYS_OFF
       const wanted = (Array.isArray(items) ? items : [])
-        .map((i) => ({ name: String(i?.name || '').trim(), quantity: Math.max(1, Math.floor(Number(i?.quantity) || 1)) }))
-        .filter((i) => i.name)
+        .map((i) => {
+          const note = cleanNote(i?.note, NOTE_MAX)
+          return {
+            // dishes tapped on the menu card carry their id, so there is no guessing from the name
+            ...(Number.isInteger(i?.dish_id) && i.dish_id > 0 && { dish_id: i.dish_id }),
+            name: String(i?.name || '').trim(),
+            quantity: Math.max(1, Math.floor(Number(i?.quantity) || 1)),
+            ...(note && { note }), // a special request for the kitchen: "less oil", "no onion"
+          }
+        })
+        .filter((i) => i.name || i.dish_id)
       if (!wanted.length) return { ok: false, error: 'What would they like to order?' }
       // a round already waiting for the guest's yes keeps its dishes: these are added to it
       // (unless the guest wants to start the round over), so browsing the menu loses nothing
       const waiting = pendingOrder && Date.now() - pendingOrder.at < 10 * 60_000 && replace !== true ? pendingOrder : null
-      const kept = waiting ? waiting.items.map((i) => ({ dish_id: i.dish_id, quantity: i.quantity })) : []
+      const kept = waiting ? waiting.items.map((i) => ({ dish_id: i.dish_id, quantity: i.quantity, ...(i.note && { note: i.note }) })) : []
+      // a request for the whole round adds to one the waiting round already has
+      const roundNote = joinNotes(waiting?.kitchen_note, cleanNote(kitchen_note, KITCHEN_NOTE_MAX))
       const tab = await currentTab()
       const order = {
         table_no: tab?.table_no || String(table || '').trim() || ctx.current.tableNo?.() || undefined,
@@ -476,7 +508,9 @@ export function createToolRunner(ctx) {
       }
       // an address said up front is only remembered to suggest later; e-receipts are sent after the tab is paid
       const suggestedEmail = normEmail(guest_email) || waiting?.suggestedEmail || ''
-      const { status, body } = await oasys('orders', { ...order, items: [...kept, ...wanted], dry_run: true })
+      const { status, body } = await oasys('orders', {
+        ...order, items: [...kept, ...wanted], ...(roundNote && { kitchen_note: roundNote }), dry_run: true,
+      })
       if (status === 422) {
         // the waiting round (if any) stays as it was; only the new items had a problem
         if (waiting) {
@@ -503,21 +537,22 @@ export function createToolRunner(ctx) {
       if (status !== 200) return { ok: false, error: body.error || 'The order could not be checked.' }
       const round = (tab?.rounds?.length || 0) + 1
       const card = {
-        lines: body.lines, table: order.table_no, round, tab_total: tab?.total || 0,
+        lines: body.lines, table: order.table_no, round, tab_total: tab?.total || 0, kitchen_note: roundNote || null,
         subtotal: body.subtotal, tax: body.tax, tax_rate: body.tax_rate, service_charge: body.service_charge, total: body.total,
       }
-      pendingOrder = { ...order, items: body.lines.map((l) => ({ dish_id: l.dish_id, quantity: l.quantity })), suggestedEmail, card, at: Date.now() }
+      pendingOrder = { ...order, items: itemsOf(body.lines), kitchen_note: roundNote || null, suggestedEmail, card, at: Date.now() }
       ctx.current.showOrder?.({ stage: 'pending', ...card })
       return {
         ok: true,
         round,
         ...(kept.length && { added_to_waiting_round: true }),
-        order: body.lines.map((l) => `${l.quantity} x ${l.name} at ${rupees(l.unit_price)} = ${rupees(l.line_total)}`),
+        order: body.lines.map((l) => `${l.quantity} x ${l.name}${l.note ? ` (${l.note})` : ''} at ${rupees(l.unit_price)} = ${rupees(l.line_total)}`),
+        ...(roundNote && { kitchen_note: roundNote }),
         this_round_total: rupees(body.total),
         ...(tab && { tab_so_far: rupees(tab.total) }),
         table: order.table_no || null,
         next:
-          'Read back ONLY the items and quantities, e.g. "one chicken biryani and two Coca-Colas, shall I send that to the kitchen?". ' +
+          'Read back ONLY the items and quantities, with any special requests, e.g. "one chicken biryani with less oil and two Coca-Colas, shall I send that to the kitchen?". ' +
           'Do NOT say any price or total out loud: the amounts are on the card on screen. ' +
           'Say an amount only if the guest asks for it, and then use ONLY the figures in this result. ' +
           'Ask the guest to confirm, then call confirm_order with their answer. ' +
@@ -553,7 +588,10 @@ export function createToolRunner(ctx) {
       if (suggestedEmail) tabEmail = suggestedEmail
       setTab(body.tab)
       const round = body.tab.rounds.at(-1)
-      show({ stage: 'added', round: body.round_no, lines: round.items, table: body.tab.table_no, tab_total: body.tab.total, rounds: body.tab.rounds.length })
+      show({
+        stage: 'added', round: body.round_no, lines: round.items, kitchen_note: round.kitchen_note || null,
+        table: body.tab.table_no, tab_total: body.tab.total, rounds: body.tab.rounds.length,
+      })
       return {
         ok: true,
         sent_to_kitchen: true,
@@ -563,6 +601,69 @@ export function createToolRunner(ctx) {
           'Tell the guest it has gone to the kitchen, in one short sentence. Do NOT ask about payment or receipts: the tab stays open. ' +
           'They can order more at any time (call place_order again for each new round). ' +
           'Only when they ask for the bill or to close the tab, call close_tab.',
+      }
+    },
+
+    // A special request for the kitchen ("less oil", "no onion", "serve the starters first") on the
+    // round still waiting for the guest's yes: for one dish (item) or, without item, the whole round.
+    // It changes nothing on the bill, so nothing is re-priced; the card shows it for the guest to check.
+    add_special_request({ request, item, quantity } = {}) {
+      if (!ctx.current.oasysConnected()) return OASYS_OFF
+      const waiting = pendingOrder && Date.now() - pendingOrder.at < 10 * 60_000 ? pendingOrder : null
+      if (!waiting) {
+        return {
+          ok: false,
+          error: 'There is no round waiting for the guest\'s yes, so there is nothing to add the request to.',
+          next:
+            'If they are about to order, pass the request with place_order (an item\'s note, or kitchen_note for the whole round). ' +
+            'If the round has already gone to the kitchen, say you cannot change it from here and a waiter will pass the message on.',
+        }
+      }
+      const max = item ? NOTE_MAX : KITCHEN_NOTE_MAX
+      const said = cleanNote(request, max)
+      if (!said) return { ok: false, error: 'What is the special request? For example "less oil" or "no onion".' }
+      const lines = waiting.card.lines.map((l) => ({ ...l }))
+
+      if (item) {
+        const hits = lines.map((l, i) => ({ l, i })).filter(({ l }) => namesDish(item, l.name))
+        if (!hits.length) {
+          return {
+            ok: false,
+            error: `"${item}" is not in the round waiting for a yes.`,
+            in_this_round: lines.map((l) => l.name),
+            next: 'Ask which dish they meant, or if it is a new dish, add it with place_order and its note.',
+          }
+        }
+        // the same dish twice ("masala dosa" and "masala dosa, no onion") or two dishes that both match: ask
+        if (hits.length > 1 && new Set(hits.map(({ l }) => l.name)).size > 1) {
+          return { ok: false, error: `"${item}" could be ${hits.map(({ l }) => l.name).join(' or ')}.`, next: 'Ask which one they meant.' }
+        }
+        // the plain line, if the dish is there with and without a request
+        const { l, i } = hits.find(({ l }) => !l.note) || hits[0]
+        const n = Math.floor(Number(quantity) || 0)
+        const note = joinNotes(l.note, said, NOTE_MAX)
+        if (n >= 1 && n < l.quantity) {
+          // only some of them: "one of the two dosas without onion" splits the line
+          const each = l.unit_price
+          lines.splice(i, 1,
+            { ...l, quantity: l.quantity - n, line_total: Math.round(each * (l.quantity - n) * 100) / 100 },
+            { ...l, quantity: n, line_total: Math.round(each * n * 100) / 100, note })
+        } else lines[i] = { ...l, note }
+      } else {
+        waiting.kitchen_note = joinNotes(waiting.kitchen_note, said)
+      }
+
+      waiting.card = { ...waiting.card, lines, kitchen_note: waiting.kitchen_note || null }
+      waiting.items = itemsOf(lines)
+      waiting.at = Date.now()
+      ctx.current.showOrder?.({ stage: 'pending', ...waiting.card })
+      return {
+        ok: true,
+        order: lines.map((l) => `${l.quantity} x ${l.name}${l.note ? ` (${l.note})` : ''}`),
+        ...(waiting.kitchen_note && { kitchen_note: waiting.kitchen_note }),
+        next:
+          'Say briefly that you have noted it for the kitchen (it is on the card), then ask again whether to send the round. ' +
+          'Do not promise the kitchen can always do it. When they say yes, call confirm_order.',
       }
     },
 

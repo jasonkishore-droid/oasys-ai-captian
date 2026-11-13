@@ -100,5 +100,5 @@ export default defineConfig(({ mode }) => {
     const lan = { host: true, https: true, port: 5444, strictPort: true, headers }
     return { plugins: [react(), basicSsl(), backend(env)], server: lan, preview: lan }
   }
-  return { plugins: [react(), backend(env)], server: { headers }, preview: { headers } }
+  return { plugins: [react(), backend(env)], server: { headers, port: 5174, strictPort: true }, preview: { headers } }
 })

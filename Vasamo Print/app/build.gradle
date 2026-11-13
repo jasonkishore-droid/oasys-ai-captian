@@ -1,0 +1,56 @@
+plugins {
+    id 'com.android.application'
+}
+
+// The signing key lives outside the repository. See README.md for how to back it up.
+def keystoreProps = new Properties()
+def keystoreFile = new File(System.getProperty('user.home'), '.vasamo/keystore.properties')
+if (keystoreFile.exists()) keystoreFile.withInputStream { keystoreProps.load(it) }
+
+android {
+    namespace 'com.vasamo.print'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'com.vasamo.print'
+        minSdk 24
+        // The P10 runs Android 11 (API 30). Targeting it means Bluetooth needs no runtime permission prompts.
+        targetSdk 30
+        versionCode 2
+        versionName '2.0.0'
+    }
+
+    signingConfigs {
+        release {
+            if (keystoreFile.exists()) {
+                storeFile new File(keystoreFile.parentFile, keystoreProps['storeFile'])
+                storePassword keystoreProps['storePassword']
+                keyAlias keystoreProps['keyAlias']
+                keyPassword keystoreProps['keyPassword']
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt')
+            signingConfig signingConfigs.release
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_11
+        targetCompatibility JavaVersion.VERSION_11
+    }
+
+    lint {
+        abortOnError false
+        checkReleaseBuilds false
+    }
+}
+
+dependencies {
+    testImplementation 'junit:junit:4.13.2'
+}

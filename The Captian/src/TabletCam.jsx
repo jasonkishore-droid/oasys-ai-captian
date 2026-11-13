@@ -22,10 +22,11 @@ function save(v) {
 // A small live webcam window in the bottom right corner of the tablet-only view.
 // It shows the same stream the tracker reads, mirrored for the front camera.
 // Drag the top-left grip to resize it; the button collapses it to a round
-// camera button. Size and collapsed state are remembered in this browser.
+// camera button. The size is remembered in this browser; it always opens collapsed.
 export default function TabletCam({ stream, mirror, who }) {
   const videoRef = useRef(null)
-  const [state, setState] = useState(() => ({ width: 260, collapsed: false, ...load() }))
+  // the size is remembered, but the window always starts collapsed
+  const [state, setState] = useState(() => ({ width: 260, ...load(), collapsed: true }))
   const { width, collapsed } = state
   const update = (patch) =>
     setState((s) => {

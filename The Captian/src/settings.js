@@ -21,19 +21,38 @@ export const DEFAULTS = {
   objectConf: 0.4,
   faceConf: 0.6,
   onlyPeople: false,
-  cameraOn: true, // false stops the camera completely (no tracking, no light)
+  cameraOn: false, // false stops the camera completely (no tracking, no light); always starts off on page load
   facing: 'user', // 'user' (front camera) or 'environment' (rear camera), where the device has both
   // hand gestures
   gestures: true, // answer yes / no questions with a hand gesture shown to the camera
   gestureMap: {}, // what each gesture means, over the defaults in lib/gestures.js: { Victory: 'yes', ... }
   // display
-  theme: 'dark', // 'dark', 'light' or 'system' (follows the OS)
+  theme: 'light', // 'light' (the default), 'dark' or 'system' (follows the OS)
   showPreview: true,
   previewStyle: 'card', // 'card' (a metal card that reflects the camera) or 'plain' (the video, with boxes)
   showBoxes: true,
 }
 
 const KEY = 'ai-captain-settings'
+
+// The theme became light by default. Every setting is saved together, so a saved 'dark' (or
+// 'system') from before cannot be told apart from a choice: move those browsers to light once,
+// then leave the theme to whatever is picked in Settings. (v2: the first run could be undone
+// by an open page saving its old settings back over it, so useSettings also switches its own copy.)
+const LIGHT_DEFAULT_KEY = 'ai-captain-light-default-v3'
+let movedToLight = false
+try {
+  if (!localStorage.getItem(LIGHT_DEFAULT_KEY)) {
+    const saved = JSON.parse(localStorage.getItem(KEY) || 'null')
+    if (saved && saved.theme !== 'light') {
+      localStorage.setItem(KEY, JSON.stringify({ ...saved, theme: 'light' }))
+      movedToLight = true
+    }
+    localStorage.setItem(LIGHT_DEFAULT_KEY, '1')
+  }
+} catch {
+  /* storage blocked: the default (light) applies */
+}
 
 // The page theme goes on <html data-theme="dark|light"> so tokens.css can swap
 // the palette; 'system' follows prefers-color-scheme and keeps following it.
@@ -70,11 +89,18 @@ export function useTheme(theme) {
 export function useSettings() {
   const [settings, setSettings] = useState(() => {
     try {
-      return { ...DEFAULTS, ...JSON.parse(localStorage.getItem(KEY) || '{}') }
+      // the camera always starts off; it is turned on per session, never restored
+      const s = { ...DEFAULTS, ...JSON.parse(localStorage.getItem(KEY) || '{}'), cameraOn: false }
+      return movedToLight ? { ...s, theme: 'light' } : s
     } catch {
       return DEFAULTS
     }
   })
+
+  // a page that was already open when the theme moved to light: switch it too, so it does not save dark back
+  useEffect(() => {
+    if (movedToLight) setSettings((s) => (s.theme === 'light' ? s : { ...s, theme: 'light' }))
+  }, [])
 
   useEffect(() => {
     try {

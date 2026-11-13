@@ -292,6 +292,24 @@ export default function App() {
     },
     [runTool, live.say]
   )
+  // Dishes tapped on the menu card: checked and priced like a spoken order, and shown on the order card
+  // for the guest's Confirm. If Greeny is listening, it is told so it can carry on from there.
+  const orderFromMenu = useCallback(
+    async (items, kitchenNote) => {
+      // items may carry a special request each ({ note: 'less oil' }); kitchenNote is for the whole round
+      const r = await runTool('place_order', { items, replace: true, ...(kitchenNote && { kitchen_note: kitchenNote }) })
+      if (r.ok) {
+        live.say(
+          `[App] The guest ordered by hand on the menu card: ${(r.order || []).join('; ')}. ` +
+            (r.kitchen_note ? `Note for the kitchen: ${r.kitchen_note}. ` : '') +
+            'The order card is showing it with Confirm and Cancel buttons. Do NOT call place_order for this. ' +
+            'In one short sentence, ask them to check it and tap Confirm, or say yes to send it to the kitchen (then call confirm_order).'
+        )
+      }
+      return r
+    },
+    [runTool, live.say]
+  )
   const liveRef = useRef(null)
   liveRef.current = { on: liveOn, say: live.say }
   const timers = useTimers({
@@ -642,10 +660,21 @@ export default function App() {
         scene={tabletOnly ? 'screen' : 'table'}
       />}
       {flash > 0 && <div key={flash} className="photo-flash" aria-hidden="true" />}
-      {menu && <MenuCarousel sections={menu.sections} section={menu.ask} withOrder={!!order} onClose={() => setMenu(null)} />}
+      {menu && (
+        <MenuCarousel
+          sections={menu.sections}
+          section={menu.ask}
+          withOrder={!!order}
+          onClose={() => setMenu(null)}
+          onOrder={settings.oasysOrdering ? orderFromMenu : undefined}
+          orderStage={order?.stage}
+          // while the menu is open, its own bar holds the talk button, so nothing sits on top of it
+          onTalk={tabletOnly && (live.state === 'off' || live.state === 'error') ? live.toggle : undefined}
+        />
+      )}
 
       {/* tablet-only view: a single tap starts the voice chat (browsers need a gesture before audio plays) */}
-      {tabletOnly && (live.state === 'off' || live.state === 'error') && (
+      {tabletOnly && !menu && (live.state === 'off' || live.state === 'error') && (
         <button className="tablet-start" onClick={live.toggle} aria-label="Start voice chat">
           <Icon name="mic" size={26} />
           <span>Tap to talk to Greeny</span>
@@ -846,6 +875,7 @@ export default function App() {
           }}
           here={names.includes(profileName) || heardUnseen === profileName}
           accent={settings.faceColor}
+          theme={theme}
           onClose={() => setProfileName(null)}
         />
       )}

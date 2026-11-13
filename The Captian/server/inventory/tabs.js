@@ -40,14 +40,17 @@ export function openTabs(file) {
     );
     CREATE INDEX IF NOT EXISTS rounds_session ON rounds (session_id);
   `)
+  // a special request for the whole round ("serve the starters first"); added to older databases too.
+  // Requests for one dish ride on its line in items: { ..., note: 'less oil' }.
+  if (!db.prepare('PRAGMA table_info(rounds)').all().some((c) => c.name === 'note')) db.exec('ALTER TABLE rounds ADD COLUMN note TEXT')
   const get = (sql, ...p) => db.prepare(sql).get(...p) ?? null
   const all = (sql, ...p) => db.prepare(sql).all(...p)
   const run = (sql, ...p) => db.prepare(sql).run(...p)
   const now = () => new Date().toISOString()
 
   const roundsOf = (id) =>
-    all('SELECT id, round_no, items, created_at FROM rounds WHERE session_id = ? ORDER BY round_no', id).map((r) => ({
-      id: r.id, round_no: r.round_no, created_at: r.created_at, items: JSON.parse(r.items),
+    all('SELECT id, round_no, items, note, created_at FROM rounds WHERE session_id = ? ORDER BY round_no', id).map((r) => ({
+      id: r.id, round_no: r.round_no, created_at: r.created_at, items: JSON.parse(r.items), ...(r.note && { kitchen_note: r.note }),
     }))
 
   function session(id) {
@@ -68,12 +71,12 @@ export function openTabs(file) {
     return session(id)
   }
 
-  function addRound(id, items) {
+  function addRound(id, items, note = null) {
     const s = session(id)
     if (!s) throw new InventoryError(404, 'Tab not found')
     if (s.status !== 'open') throw new InventoryError(409, `This tab is already ${s.status === 'closed' ? 'closed and billed' : 'closed'}`)
     const n = (s.rounds.at(-1)?.round_no || 0) + 1
-    run('INSERT INTO rounds (session_id, round_no, items, created_at) VALUES (?, ?, ?, ?)', s.id, n, JSON.stringify(items), now())
+    run('INSERT INTO rounds (session_id, round_no, items, note, created_at) VALUES (?, ?, ?, ?, ?)', s.id, n, JSON.stringify(items), note || null, now())
     return session(s.id)
   }
 
@@ -97,15 +100,20 @@ export function openTabs(file) {
     return out
   }
 
-  // the kitchen feed: rounds after an id, with their table
+  // the kitchen feed (each round is a kitchen ticket): rounds after an id, with their table
+  // and the guests' special requests, per dish (note) and for the whole round (kitchen_note)
   function roundsSince(sinceId) {
     const rows = all(
-      `SELECT r.id, r.session_id, r.round_no, r.items, r.created_at, s.table_no, s.customer FROM rounds r
+      `SELECT r.id, r.session_id, r.round_no, r.items, r.note, r.created_at, s.table_no, s.customer FROM rounds r
        JOIN sessions s ON s.id = r.session_id WHERE r.id > ? ORDER BY r.id LIMIT 50`,
       sinceId
     )
     return {
-      rounds: rows.map((r) => ({ ...r, items: JSON.parse(r.items).map(({ dish_id, name, diet, quantity }) => ({ dish_id, name, diet, quantity })) })),
+      rounds: rows.map(({ note, ...r }) => ({
+        ...r,
+        kitchen_note: note || null,
+        items: JSON.parse(r.items).map(({ dish_id, name, diet, quantity, note }) => ({ dish_id, name, diet, quantity, note: note || null })),
+      })),
       last_id: rows.length ? rows.at(-1).id : sinceId,
     }
   }

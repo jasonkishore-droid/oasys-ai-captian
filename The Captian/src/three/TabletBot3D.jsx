@@ -121,7 +121,7 @@ function canvasTexture(w, h, draw) {
   return t
 }
 
-// `bill` (an Oasys Bay order, at any stage) is shown on the screen itself: the
+// `bill` (an Vasamo order, at any stage) is shown on the screen itself: the
 // face slides left and shrinks, the panel fades in on the right. Every stage is drawn there (confirm, placed + e-receipt email,
 // confirm address, sent, problem, cancelled) and its buttons can be tapped on
 // the screen: onOrderAction(tool, args) runs the same tool as saying it,
@@ -481,6 +481,8 @@ export default function TabletBot3D({ mood = 'idle', speaking = false, busy = fa
       return `${t}…`
     }
     const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    // the rating card's tags (same as FEEDBACK_TAGS in tools.js)
+    const RATING_TAGS = [['food', 'Food'], ['service', 'Service'], ['speed', 'Speed'], ['value', 'Value'], ['ambience', 'Ambience'], ['cleanliness', 'Cleanliness']]
     // wrap text into lines that fit `max` (long words, like emails, are broken anywhere)
     const wrap = (ctx, text, max) => {
       const out = []
@@ -738,7 +740,7 @@ export default function TabletBot3D({ mood = 'idle', speaking = false, busy = fa
         }
         actions([
           { label: 'Next', primary: true, disabled: !typed || bad, run: act('set_receipt_email', { email: typed }) },
-          { label: 'No thanks', run: () => p.onClose?.(), act: false },
+          { label: 'No thanks', run: act('rate_meal', {}) }, // on to the rating card
         ])
       } else if (order.stage === 'receipt_confirm') {
         line(`Send e-receipt for ${order.bill_no || 'this order'} to:`, '', { size: 14, weight: 600, alpha: 0.85 })
@@ -756,7 +758,74 @@ export default function TabletBot3D({ mood = 'idle', speaking = false, busy = fa
         line(order.bill_no || '', '', { alpha: 0.65 })
         y += 24
         para(`Sent to ${order.email || ''}`, { alpha: 0.85 })
-        actions([close])
+        actions([{ label: 'Done', run: act('rate_meal', {}) }]) // on to the rating card
+      } else if (order.stage === 'rating') {
+        // after payment: 1-5 stars, then what they liked / what could be better; Submit saves it
+        const stars = order.rating || 0
+        const tags = new Set(order.tags || [])
+        const pick = (args) => () => p.onOrderAction?.('rating_pick', args)
+        line('How was your meal?', '', { size: 17, weight: 700, alpha: 1 })
+        y += 14
+        const sw = 40
+        for (let n = 1; n <= 5; n++) {
+          const sx = x0 + (n - 1) * (sw + 6)
+          ctx.font = `400 34px ${FONT}`
+          ctx.textAlign = 'center'
+          ctx.fillStyle = n <= stars ? '#f5b301' : 'rgba(255,255,255,0.35)'
+          ctx.fillText(n <= stars ? '★' : '☆', sx + sw / 2, y + 34)
+          if (tappable) buttons.push({ x: sx, y, w: sw, h: 42, run: pick({ rating: n }), act: false })
+        }
+        y += 64
+        if (stars) {
+          line(stars >= 4 ? 'What did you like?' : 'What could be better?', '', { size: 13, weight: 600, alpha: 0.85 })
+          y += 10
+          let cx = x0
+          for (const [tag, label] of RATING_TAGS) {
+            font(12, 600)
+            const cw = ctx.measureText(label).width + 22
+            if (cx + cw > x1) {
+              cx = x0
+              y += 32
+            }
+            const on = tags.has(tag)
+            ctx.beginPath()
+            ctx.roundRect(cx, y, cw, 26, 13)
+            if (on) {
+              ctx.fillStyle = color
+              ctx.fill()
+            } else {
+              ctx.strokeStyle = 'rgba(255,255,255,0.5)'
+              ctx.lineWidth = 1.2
+              ctx.stroke()
+            }
+            ctx.fillStyle = on ? '#000' : 'rgba(255,255,255,0.92)'
+            ctx.textAlign = 'center'
+            ctx.fillText(label, cx + cw / 2, y + 17)
+            if (tappable) buttons.push({ x: cx, y, w: cw, h: 26, run: pick({ tag }), act: false })
+            cx += cw + 6
+          }
+          y += 50
+        }
+        if (order.error) para(order.error, { size: 11, col: red, gap: 13, maxLines: 2 })
+        y += 16 // room for the hint
+        const by = actions([
+          { label: 'Submit', busyLabel: 'Saving…', primary: true, disabled: !stars, run: act('rate_meal', { rating: stars, via: 'tap' }) },
+          { label: 'Skip', run: () => p.onClose?.(), act: false },
+        ])
+        hint('Tap the stars, or just tell me. Anything to add? Say it.', by)
+      } else if (order.stage === 'rating_thanks') {
+        const low = order.rating <= 2
+        line(low ? 'Sorry it wasn’t better' : 'Thank you!', '', { size: 17, weight: 700, alpha: 1 })
+        y += 26
+        para(low ? 'Thank you for telling us. A manager can come over to put it right.' : `You rated us ${order.rating} of 5. Hope to see you again soon.`, { alpha: 0.85 })
+        if (order.manager_called) {
+          line('✓ A manager has been called to your table.', '', { size: 13, weight: 600, alpha: 0.95 })
+          y += 18
+        }
+        if (order.error) para(order.error, { size: 11, col: red, gap: 13, maxLines: 2 })
+        actions(low && !order.manager_called
+          ? [{ label: 'Call a manager', busyLabel: 'Calling…', primary: true, run: act('call_waiter', { reason: 'other', note: `Guest rated the meal ${order.rating}/5 and would like a manager` }) }, close]
+          : [close])
       } else if (order.stage === 'payment') {
         // closing the tab: the whole meal, then how they pay; it is billed on the tap
         line(`Close tab · How will you pay?`, '', { size: 16, weight: 700, alpha: 1 })

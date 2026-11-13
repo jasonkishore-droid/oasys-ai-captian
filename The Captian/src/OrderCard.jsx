@@ -6,7 +6,9 @@
 //   payment          closing the tab: cash, UPI or card, then it is billed and paid
 //   placed           paid; offer an e-receipt (email box)
 //   receipt_confirm  "Send e-receipt to …?": nothing is sent until Yes
-//   receipt_sent     done
+//   receipt_sent     e-receipt sent
+//   rating           "How was your meal?": 1-5 stars, then what they liked / what could be better (rate_meal)
+//   rating_thanks    saved; on 1-2 stars, offer to call a manager
 //   cancelled, problem
 import { useEffect, useState } from 'react'
 import UpiPopup from './UpiPopup.jsx'
@@ -15,6 +17,7 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const rupees = (n) => `₹${Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`
 const row = { display: 'flex', justifyContent: 'space-between', gap: 12, fontVariantNumeric: 'tabular-nums' }
 const danger = 'var(--danger, #c8392b)'
+const TAG_LABELS = { food: 'Food', service: 'Service', speed: 'Speed', value: 'Value', ambience: 'Ambience', cleanliness: 'Cleanliness' }
 
 // the item lines, then subtotal / tax and the total
 function Items({ order, totalLabel = 'Total', prices = true }) {
@@ -214,7 +217,7 @@ export default function OrderCard({ order, onAction, onClose, onBack }) {
           <div className="note-actions rc-actions">
             <button className="btn primary sm rc-next" type="submit" disabled={!typed || emailBad || busy}>Next</button>
             <button className="btn sm" type="button" onClick={onClose}>‹ Go back</button>
-            <button className="btn sm" type="button" onClick={onClose}>No thanks</button>
+            <button className="btn sm" type="button" disabled={busy} onClick={() => act('rate_meal', {})}>No thanks</button>
           </div>
         </form>
       </div>
@@ -242,7 +245,73 @@ export default function OrderCard({ order, onAction, onClose, onBack }) {
       <div className="note surface order-note" role="status" aria-label="E-receipt sent">
         <strong>✓ E-receipt sent · {order.bill_no}</strong>
         <p>Sent to {order.email}</p>
-        {dismiss}
+        <button className="btn sm" style={{ marginTop: 8 }} disabled={busy} onClick={() => act('rate_meal', {})}>Done</button>
+      </div>
+    )
+  }
+
+  if (order.stage === 'rating') {
+    const stars = order.rating || 0
+    const tags = new Set(order.tags || [])
+    // the card's taps don't wait on the server, so they don't grey it out
+    const pick = (args) => onAction('rating_pick', args)
+    return (
+      <div className="note surface order-note" role="dialog" aria-label="Rate your meal">
+        <strong>How was your meal?</strong>
+        <div role="radiogroup" aria-label="Rating" style={{ display: 'flex', gap: 4, margin: '8px 0', fontSize: 30, lineHeight: 1 }}>
+          {[1, 2, 3, 4, 5].map((n) => (
+            <button
+              key={n}
+              role="radio"
+              aria-checked={stars === n}
+              aria-label={`${n} star${n === 1 ? '' : 's'}`}
+              onClick={() => pick({ rating: n })}
+              style={{ background: 'none', border: 0, padding: 2, cursor: 'pointer', font: 'inherit', color: n <= stars ? '#f5b301' : 'currentColor', opacity: n <= stars ? 1 : 0.4 }}
+            >
+              {n <= stars ? '★' : '☆'}
+            </button>
+          ))}
+        </div>
+        {stars > 0 && (
+          <>
+            <p style={{ margin: '4px 0' }}>{stars >= 4 ? 'What did you like?' : 'What could be better?'}</p>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+              {Object.entries(TAG_LABELS).map(([tag, label]) => (
+                <button key={tag} className={`btn sm${tags.has(tag) ? ' primary' : ''}`} aria-pressed={tags.has(tag)} onClick={() => pick({ tag })}>
+                  {label}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+        {order.error && <p style={{ color: danger }}>{order.error}</p>}
+        <p style={{ opacity: 0.7 }}>Tap the stars, or just tell me. Anything to add? Say it out loud.</p>
+        <div className="note-actions">
+          <button className="btn primary sm" disabled={!stars || busy} onClick={() => act('rate_meal', { rating: stars, via: 'tap' })}>
+            {busy ? 'Saving…' : 'Submit'}
+          </button>
+          <button className="btn sm" onClick={onClose}>Skip</button>
+        </div>
+      </div>
+    )
+  }
+
+  if (order.stage === 'rating_thanks') {
+    const low = order.rating <= 2
+    return (
+      <div className="note surface order-note" role="status" aria-label="Thank you">
+        <strong>{low ? 'Sorry it wasn’t better' : 'Thank you!'}</strong>
+        <p>{low ? 'Thank you for telling us. A manager can come over to put it right.' : `You rated us ${order.rating} of 5. Hope to see you again soon.`}</p>
+        {order.manager_called && <p>✓ A manager has been called to your table.</p>}
+        {order.error && <p style={{ color: danger }}>{order.error}</p>}
+        <div className="note-actions">
+          {low && !order.manager_called && (
+            <button className="btn primary sm" disabled={busy} onClick={() => act('call_waiter', { reason: 'other', note: `Guest rated the meal ${order.rating}/5 and would like a manager` })}>
+              {busy ? 'Calling…' : 'Call a manager'}
+            </button>
+          )}
+          <button className="btn sm" onClick={onClose}>Close</button>
+        </div>
       </div>
     )
   }

@@ -8,7 +8,7 @@
 // INVENTORY_API_URL/api/integrations/* with the shared ORDER_API_KEY.
 //
 //   GET  /api/oasys/menu/stream   (server-sent events: a "menu" event whenever stock or the till changes what is sold out)
-//   GET  /api/oasys/ping   GET /api/oasys/menu?search=&section=&diet=   POST /api/oasys/orders
+//   GET  /api/oasys/ping   GET /api/oasys/menu?search=&section=&diet=&filter=&avoid=   POST /api/oasys/orders
 //   GET  /api/oasys/orders?since_id=   (paid bills after an id: the kitchen ticket feed)
 //   POST /api/oasys/orders/email { bill_no, to }   (e-receipt after the guest confirmed the address)
 //   Open tabs (a table's dining session: order in rounds, pay once at the end):
@@ -17,12 +17,23 @@
 //   GET  /api/oasys/kitchen?since_id=   (each round as it is ordered, with its table)
 //   POST /api/oasys/print-test   POST /api/oasys/print-receipt { bill_no }   GET /api/oasys/print-jobs/:id
 //   GET  /api/oasys/printer   (is the Bluetooth printer connected in a Stock Management tab?)
+//   Call waiter (server/inventory/waiter.js; needs only the tabs database, not the till's):
+//   POST /api/oasys/waiter/call { table_no, reason?, note? }   GET /api/oasys/waiter?table_no=
+//   POST /api/oasys/waiter/cancel { id } | { table_no }   GET /api/oasys/waiter/calls (staff screen)
+//   POST /api/oasys/waiter/ack { id, by? }   POST /api/oasys/waiter/done { id }
+//   Feedback after payment (server/inventory/feedback.js; tabs database only):
+//   POST /api/oasys/feedback { bill_no, rating, liked?, improve?, comment? }   GET /api/oasys/feedback?since_id=&limit=
 import { inventoryConfig } from './inventory/config.js'
 import { inventoryApi } from './inventory/orders.js'
 import { openStore } from './inventory/store.js'
 import { openTabs } from './inventory/tabs.js'
+import { waiterApi } from './inventory/waiter.js'
+import { feedbackApi } from './inventory/feedback.js'
+import { dietarySource } from './inventory/dietary.js'
 
 const LOCAL = /^\/api\/oasys\/(ping|menu|upi|orders|orders\/email|tab|tab\/add|tab\/close|tab\/cancel|kitchen|kitchen\/board|kitchen\/status)$/
+const WAITER = /^\/api\/oasys\/waiter(?:\/(call|cancel|calls|ack|done))?$/
+const FEEDBACK = /^\/api\/oasys\/feedback$/
 const PRINT = /^\/api\/oasys\/(printer|print-test|print-receipt|print-jobs\/\d+)$/
 
 function readBody(req) {
@@ -44,7 +55,13 @@ function readBody(req) {
 export function oasysRoutes(env) {
   const config = inventoryConfig(env)
   let api = null
-  const getApi = () => (api ??= inventoryApi(openStore(config), config, openTabs(config.tabsFile))) // opened on first use
+  let tabs = null
+  let waiter = null
+  const getTabs = () => (tabs ??= openTabs(config.tabsFile))
+  const getApi = () => (api ??= inventoryApi(openStore(config), config, getTabs(), dietarySource(config.menuCardDir))) // opened on first use
+  const getWaiter = () => (waiter ??= waiterApi(getTabs())) // works without the till's database
+  let feedback = null
+  const getFeedback = () => (feedback ??= feedbackApi(getTabs()))
 
   // Live sold-out sync. Stock Management is a separate process writing the same database, so this
   // watches the menu for changes (cheap: one small read every 2 s, only while a tablet is listening)
@@ -105,6 +122,38 @@ export function oasysRoutes(env) {
     if (req.method === 'GET' && u.pathname === '/api/oasys/menu/stream') return watchMenu(req, res)
     if (req.method === 'GET' && u.pathname === '/api/oasys/kitchen/stream') return watchKitchen(req, res)
     try {
+      const w = u.pathname.match(WAITER)
+      if (w) {
+        const what = w[1] || 'status'
+        const post = req.method === 'POST'
+        if (post !== ['call', 'cancel', 'ack', 'done'].includes(what)) return send(res, 405, { error: post ? 'Use GET' : 'Use POST' })
+        let body = {}
+        if (post) {
+          try {
+            body = JSON.parse((await readBody(req)) || '{}')
+          } catch (e) {
+            if (e.status) throw e
+            return send(res, 400, { error: 'Request body is not valid JSON' })
+          }
+        }
+        const a = getWaiter()
+        const r = what === 'status' ? a.status(query) : what === 'calls' ? a.active() : a[what](body)
+        return send(res, r.status, r.body)
+      }
+
+      if (FEEDBACK.test(u.pathname)) {
+        if (req.method !== 'POST') return send(res, 200, getFeedback().list(query).body)
+        let body
+        try {
+          body = JSON.parse((await readBody(req)) || '{}')
+        } catch (e) {
+          if (e.status) throw e
+          return send(res, 400, { error: 'Request body is not valid JSON' })
+        }
+        const r = getFeedback().save(body)
+        return send(res, r.status, r.body)
+      }
+
       const local = u.pathname.match(LOCAL)
       if (local) {
         const what = local[1]
@@ -121,7 +170,7 @@ export function oasysRoutes(env) {
         const a = getApi()
         const r =
           what === 'ping' ? a.ping()
-          : what === 'menu' ? a.menu(query)
+          : what === 'menu' ? (query.filter || query.avoid ? await a.dietaryMenu(query) : a.menu(query))
           : what === 'upi' ? a.upi()
           : what === 'orders' ? (post ? a.placeOrder(body) : a.ordersSince(query))
           : what === 'tab' ? a.tab(query)

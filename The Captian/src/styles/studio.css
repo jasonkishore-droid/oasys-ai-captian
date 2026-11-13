@@ -167,6 +167,9 @@
 .app.studio .head {
   position: absolute;
   inset: 0;
+  /* the layer fills the screen, so it ignores taps; only the bot's body (.studio-shell) takes them,
+     and they still bubble up to the head's click handler */
+  pointer-events: none;
 }
 .app.studio.tablet-only {
   background: var(--bg, #0b0b0c);

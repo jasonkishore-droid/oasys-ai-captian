@@ -423,10 +423,47 @@ div.tablet-inventory {
   font-size: 10px;
 }
 
+/* Greeny's words: no bubble, just text in the glowing blue of the ring round the bot (.studio-ring),
+   drifting between cyan and violet in step with it */
 .app.tablet-only .transcript .line.greeny {
-  border-color: color-mix(in srgb, var(--iris, #2f7bff) 55%, transparent);
-  background: color-mix(in srgb, var(--iris, #2f7bff) 16%, rgba(20, 22, 26, 0.82));
-  color: #fff;
+  padding: 0 4px;
+  border: 0;
+  background: none;
+  backdrop-filter: none;
+  color: #5b9bff;
+  font-weight: 600;
+  text-shadow: 0 0 3px rgba(106, 168, 255, 0.45), 0 0 10px rgba(80, 140, 255, 0.2);
+  animation: line-in 500ms var(--ease) both, caption-aurora 7s ease-in-out 0.9s infinite alternate;
+}
+
+.app.tablet-only .transcript .line.greeny span {
+  color: #5b9bff;
+  opacity: 0.75;
+}
+
+/* the guest's words: no bubble, burnt orange (5.2 : 1 on white), with only a faint glow */
+.app.tablet-only .transcript .line.you {
+  padding: 0 4px;
+  border: 0;
+  background: none;
+  backdrop-filter: none;
+  color: #c2410c;
+  font-weight: 600;
+  text-shadow: 0 0 3px rgba(234, 88, 12, 0.3), 0 0 10px rgba(234, 88, 12, 0.12);
+}
+
+.app.tablet-only .transcript .line.you span {
+  color: #c2410c;
+  opacity: 0.75;
+}
+
+@keyframes caption-aurora {
+  from { filter: hue-rotate(-30deg); }
+  to { filter: hue-rotate(38deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app.tablet-only .transcript .line.greeny { animation: line-in 500ms var(--ease) both; }
 }
 
 .tablet-inventory.wait .tablet-inventory-dot {
@@ -662,4 +699,30 @@ div.tablet-inventory {
   background: #1c1c20;
   color: inherit;
   font: inherit;
+}
+
+/* "Call waiter" (F6): a button, then the call's status with Cancel */
+.tablet-waiter small {
+  opacity: 0.75;
+}
+.tablet-waiter:is(button):disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+.tablet-waiter-cancel {
+  margin: 0 -8px 0 4px;
+  min-height: 28px;
+  padding: 0 12px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.tablet-waiter-cancel:hover,
+.tablet-waiter-cancel:focus-visible {
+  background: rgba(255, 255, 255, 0.12);
+  outline: none;
 }

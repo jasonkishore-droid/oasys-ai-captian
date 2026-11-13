@@ -19,7 +19,7 @@ npm run build    # production build in dist/
 npm run preview  # serve the production build
 ```
 
-Copy `.env.example` to `.env` and fill it in (Gemini API key, Oasys Bay, ports).
+Copy `.env.example` to `.env` and fill it in (Gemini API key, Vasamo, ports).
 The camera and mic need a secure context: `localhost` or HTTPS.
 
 ## What it does
@@ -60,7 +60,7 @@ src/
   useLive.js            Gemini Live voice chat
   tools.js, lib/toolDefs.js   the voice tools
   styles/               tokens.css (palette, light theme), tablet.css, ui.css
-server/                 dev-server API: faces, voices, facts, photos, desktop, Oasys Bay, Live relay; db/ (SQLite + migrations)
+server/                 dev-server API: faces, voices, facts, photos, desktop, Vasamo, Live relay; db/ (SQLite + migrations)
 server/inventory/       menu, orders, stock and e-receipts, ported from Stock Management; works on its database
 sidecar/                Python helpers: voice ID, desktop control
 public/models/          yolov8n-f32.onnx, yunet.onnx, sface.onnx

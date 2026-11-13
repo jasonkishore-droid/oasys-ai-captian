@@ -2,6 +2,7 @@ import { Component, useCallback, useEffect, useMemo, useRef, useState } from 're
 import Icon from './icons.jsx'
 import BookModel from './book/BookModel.jsx'
 import { menuContent } from './book/content.js'
+import { dietaryLabel, dietaryQuery } from './lib/dietary.js'
 
 // The menu can be read two ways: the carousel of cards, or a 3D book with pages that turn.
 // The guest's choice is remembered in this browser.
@@ -47,15 +48,25 @@ const NOTES = {
 const DIET = { veg: 'v', nonveg: 'n', egg: 'e' }
 const norm = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
 
-// the live menu, grouped into sections in menu order
-export async function loadMenuSections() {
-  const r = await fetch('/api/oasys/menu?all=1', { cache: 'no-store' })
+// the live menu, grouped into sections in menu order; with a dietary filter, only the dishes that
+// pass, each saying if it needs the sides swapped or its tags are not yet confirmed by the kitchen
+export async function loadMenuSections(dietary = null) {
+  const q = dietaryQuery(dietary)
+  q.set('all', '1') // dishes switched off at the till come back too, shown as sold out
+  const r = await fetch(`/api/oasys/menu?${q}`, { cache: 'no-store' })
   if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || 'The menu could not be loaded')
   const { dishes = [] } = await r.json()
+  const label = q.has('filter') || q.has('avoid') ? dietaryLabel(dietary) : ''
   const by = new Map()
   for (const d of dishes) {
-    if (!by.has(d.section)) by.set(d.section, { title: d.section, note: NOTES[d.section] || '', items: [] })
-    by.get(d.section).items.push({ id: d.id, name: d.name, price: d.price, type: DIET[d.diet] || 'v', desc: d.description, soldOut: d.sold_out })
+    const note = label ? [NOTES[d.section], `Showing: ${label}`].filter(Boolean).join(' · ') : NOTES[d.section] || ''
+    if (!by.has(d.section)) by.set(d.section, { title: d.section, note, items: [] })
+    const flags = !label ? [] : [
+      d.fit === 'with-changes' && 'Ask for it without the usual sambar and chutneys',
+      !d.confirmed && 'Not yet confirmed by the kitchen: please check with staff',
+    ]
+    const desc = [d.description, ...flags].filter(Boolean).join(' · ')
+    by.get(d.section).items.push({ id: d.id, name: d.name, price: d.price, type: DIET[d.diet] || 'v', desc, soldOut: d.sold_out })
   }
   return [...by.values()]
 }

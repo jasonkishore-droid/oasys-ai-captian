@@ -1,9 +1,7 @@
 import { useEffect, useState } from 'react'
 
-// Tablet-only view: connect to the inventory (the Stock Management app, "Oasys Bay")
-// so Greeny can read the menu and place orders. It flips the same setting as the
-// "Connect to Oasys Bay" switch in Settings, then checks that the inventory answers.
-export default function TabletInventory({ enabled, onChange }) {
+// Is Vasamo (the Stock Management app) answering? Checked whenever the connection is switched on.
+export function useVasamoStatus(enabled) {
   const [state, setState] = useState(null) // null | { ok: true | false | null, text }
   useEffect(() => {
     if (!enabled) return setState(null)
@@ -15,27 +13,34 @@ export default function TabletInventory({ enabled, onChange }) {
         if (!live) return
         setState(r.ok ? { ok: true, text: b.restaurant || b.club || 'Connected' } : { ok: false, text: b.error || `Error ${r.status}` })
       })
-      .catch(() => live && setState({ ok: false, text: 'Cannot reach the inventory app' }))
+      .catch(() => live && setState({ ok: false, text: 'Cannot reach Vasamo' }))
     return () => {
       live = false
     }
   }, [enabled])
+  return state
+}
 
+// Tablet-only view: connect to Vasamo (the Stock Management app) so Greeny can read the
+// menu and place orders. It flips the same setting as the "Connect to Vasamo" switches in
+// Settings and the tablet's gear menu, then checks that Vasamo answers.
+export default function TabletInventory({ enabled, onChange }) {
+  const state = useVasamoStatus(enabled)
   const dot = state?.ok === true ? 'ok' : state?.ok === false ? 'bad' : enabled ? 'wait' : ''
   return (
     <button
       className={`tablet-inventory ${dot}`}
       onClick={() => onChange(!enabled)}
       aria-pressed={enabled}
-      title={enabled ? 'Disconnect from the inventory' : 'Connect to the inventory to take orders'}
+      title={enabled ? 'Disconnect from Vasamo' : 'Connect to Vasamo to take orders'}
     >
       <span className="tablet-inventory-dot" aria-hidden="true" />
       {enabled ? (
         <span>
-          Inventory · {state?.text || 'Connecting…'}
+          Vasamo · {state?.text || 'Connecting…'}
         </span>
       ) : (
-        <span>Connect inventory</span>
+        <span>Connect to Vasamo</span>
       )}
     </button>
   )

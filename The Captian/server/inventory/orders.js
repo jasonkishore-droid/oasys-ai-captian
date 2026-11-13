@@ -95,7 +95,9 @@ export function parseOrder(b = {}) {
 }
 
 // ---- the endpoints ----
-export function inventoryApi(store, config, tabs = null) {
+const MENU_TYPE = { veg: 'v', egg: 'e', nonveg: 'n' }
+
+export function inventoryApi(store, config, tabs = null, dietary = null) {
   // portions left, less what is already on open tabs (eaten, but not out of stock until the tab is paid)
   const withHeld = (dishes) => {
     const held = tabs ? tabs.reserved() : new Map()
@@ -108,7 +110,20 @@ export function inventoryApi(store, config, tabs = null) {
     portions_left: d.portions, sold_out: soldOut(d),
     ...(d.available === false && { sold_out: true, switched_off: true }),
   })
+  // the tablet's card treats a dish with no stock left as sold out even where the till allows negative stock
+  const menuDish = (d, query) => (query.all === '1' && d.portions === 0 ? { ...publicDish(d), sold_out: true } : publicDish(d))
   const ok = (body, status = 200) => ({ status, body })
+  // the dishes, narrowed by search, section and the till's diet mark (veg | egg | nonveg). With all=1 the
+  // menu card also gets dishes switched off at the till ("86'd"), shown as sold out; ordering never offers them
+  const menuDishes = (query) => {
+    const s = tokens(query.search)
+    const section = norm(query.section)
+    let dishes = query.all === '1' ? withHeld(store.listDishes()) : orderable()
+    if (query.diet) dishes = dishes.filter((d) => d.diet === query.diet)
+    if (section) dishes = dishes.filter((d) => norm(d.section).includes(section))
+    if (s.length) dishes = dishes.filter((d) => s.every((t) => tokens(d.name).some((n) => n.startsWith(t) || t.startsWith(n))))
+    return dishes
+  }
 
   const needTabs = () => tabs || bad('Tabs are not available')
   // every round's lines, added up per dish (the bill's view: special requests are dropped)
@@ -185,19 +200,39 @@ export function inventoryApi(store, config, tabs = null) {
 
     ping: () => ok({ ok: true, restaurant: config.restaurant.name, currency: 'INR', gst_rate: config.billing.taxRate }),
 
-    menu(query = {}) {
-      const s = tokens(query.search)
-      const section = norm(query.section)
-      // the menu card also shows dishes switched off at the till ("86'd") as sold out; ordering never offers them
-      let dishes = query.all === '1' ? withHeld(store.listDishes()) : orderable()
-      if (query.diet) dishes = dishes.filter((d) => d.diet === query.diet)
-      if (section) dishes = dishes.filter((d) => norm(d.section).includes(section))
-      if (s.length) dishes = dishes.filter((d) => s.every((t) => tokens(d.name).some((n) => n.startsWith(t) || t.startsWith(n))))
-      return ok({ currency: 'INR', gst_rate: config.billing.taxRate, dishes: dishes.map((d) => {
-        const p = publicDish(d)
-        // the tablet's card treats a dish with no stock left as sold out even where the till allows negative stock
-        return query.all === '1' && d.portions === 0 ? { ...p, sold_out: true } : p
-      }) })
+    menu: (query = {}) => ok({ currency: 'INR', gst_rate: config.billing.taxRate, dishes: menuDishes(query).map((d) => menuDish(d, query)) }),
+
+    // The menu with the dietary filters (F3), used when the query has filter or avoid:
+    //   filter: veg | egg | vegan | jain, avoid: comma-separated (onion, garlic, nuts, gluten, ...)
+    // Each dish that passes says whether its tags are confirmed by the owner's sign-off, and is
+    // fit 'with-changes' when it only passes once the default sides are swapped.
+    async dietaryMenu(query = {}) {
+      const dishes = menuDishes(query)
+      const filter = text(query.filter, 10, 'filter')?.toLowerCase() || null
+      const avoid = [...new Set(String(query.avoid || '').toLowerCase().split(/[\s,]+/).filter(Boolean))]
+      if (!dietary) bad('Dietary filters are not available')
+      const { mod, signoff } = await dietary.load()
+      if (filter && !mod.DIETS.includes(filter)) bad(`filter: must be one of ${mod.DIETS.join(', ')}`)
+      const unknown = avoid.filter((a) => !(a in mod.AVOID))
+      if (unknown.length) bad(`avoid: unknown ${unknown.join(', ')} (use ${Object.keys(mod.AVOID).join(', ')})`)
+      // veg / egg alone go by the till's veg, egg and non-veg marks; anything else needs the tags
+      const byTags = avoid.length > 0 || ['vegan', 'jain'].includes(filter)
+      const out = []
+      for (const d of dishes) {
+        const type = MENU_TYPE[d.diet] || 'v'
+        const info = mod.dishDiet(d.name, type, d.section, signoff)
+        if (byTags && info.untagged) continue // a dish with no tags (new, or renamed) is never offered as suitable
+        const fit = mod.passes(info, type, { diet: filter, avoid })
+        if (fit === 'no') continue
+        out.push({ ...menuDish(d, query), fit, confirmed: !byTags || info.confirmed, allergens: info.allergens, ...(info.untagged && { untagged: true }) })
+      }
+      return ok({
+        currency: 'INR', gst_rate: config.billing.taxRate, dishes: out,
+        dietary: {
+          filter, avoid, by_tags: byTags,
+          signed_off: signoff ? { by: signoff.signed_by, on: signoff.signed_at, dishes: Object.keys(signoff.dishes || {}).length } : null,
+        },
+      })
     },
 
     // dry_run: a quote (matched dishes, GST totals, next bill number); otherwise the bill is created

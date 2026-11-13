@@ -70,7 +70,7 @@ function backend(env) {
     route(['/api/voices', '/api/voice/'], (db) => voiceRoutes(db, voiceUrl))
     route(['/api/facts'], (db) => factRoutes(db))
     server.middlewares.use(photoRoutes(env.PHOTOS_DIR || 'data/photos')) // take_photo's "save to folder"
-    server.middlewares.use(oasysRoutes(env)) // Oasys Bay club app: menu + voice orders (get_menu, place_order)
+    server.middlewares.use(oasysRoutes(env)) // Vasamo club app: menu + voice orders (get_menu, place_order)
     // the mouse tools: this computer's real mouse and keyboard
     server.middlewares.use(desktopRoutes(startDesktopService(env, server), { allowLan: env.DESKTOP_ALLOW_LAN === '1' }))
     liveProxy(

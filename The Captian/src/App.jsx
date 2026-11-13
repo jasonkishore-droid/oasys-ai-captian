@@ -16,6 +16,7 @@ import TabletCam from './TabletCam.jsx'
 import TabletSettings from './TabletSettings.jsx'
 import TabletInventory, { TabletPrinter } from './TabletInventory.jsx'
 import TabletTab from './TabletTab.jsx'
+import TabletWaiter from './TabletWaiter.jsx'
 import PhotoCard from './PhotoCard.jsx'
 import { downloadPhoto, photoName, savePhoto, snapshot } from './lib/photo.js'
 import { cursorArt } from './lib/cursorArt.js'
@@ -82,7 +83,7 @@ const HELP = {
 
 // AI Captain: the tablet bot on a round dining table (TabletBot3D), with the
 // voice chat, camera tracking, face and voice recognition and the tools
-// (Oasys Bay ordering, photos, timers, people, the computer's mouse).
+// (Vasamo ordering, photos, timers, people, the computer's mouse).
 export default function App() {
   const [mouse, setMouse] = useState(null)
   const [settings, set, reset] = useSettings()
@@ -198,6 +199,11 @@ export default function App() {
   )
   const live = useLive({ face: everyone, speaker: voiceId.speaker, onPcm, voice: settings.voice, language: settings.language, character: 'greeny', onToolCall: runTool })
   const liveOn = live.state === 'live'
+  // connect to Vasamo (the Stock Management app): the gear menu, the info panel and Settings all flip this
+  const setVasamo = (on) => {
+    set('oasysOrdering', on)
+    if (on) live.say('[App] Vasamo is now connected. You can read the menu and take orders. Do not reply to this note.')
+  }
 
   // small messages that fade away (timers, reminders)
   const [toasts, setToasts] = useState([])
@@ -225,18 +231,19 @@ export default function App() {
   // The Kitchen Display Screen: a full-screen card like the menu. Opened at once
   // on a device dedicated to the kitchen by adding ?kitchen to the address.
   const [kitchen, setKitchen] = useState(() => new URLSearchParams(window.location.search).has('kitchen'))
-  const showMenu = useCallback(async (section) => {
+  // dietary: an optional filter, { diet, avoid } (F3): only the dishes that pass are shown
+  const showMenu = useCallback(async (section, dietary = null) => {
     if (section === null) {
       setMenu(null)
       return { ok: true }
     }
     try {
-      const sections = await loadMenuSections()
-      if (!sections.length) return { ok: false, error: 'The menu is empty right now.' }
+      const sections = await loadMenuSections(dietary)
+      if (!sections.length) return { ok: false, error: dietary ? 'No dishes on the menu match that filter right now.' : 'The menu is empty right now.' }
       const i = findSection(sections, section)
       const at = sections[Math.max(0, i)].title
       setKitchen(false)
-      setMenu({ sections, ask: { name: at, at: Date.now() } })
+      setMenu({ sections, dietary, ask: { name: at, at: Date.now() } })
       return { ok: true, section: at, matched: i >= 0, sections: sections.map((s) => s.title) }
     } catch (e) {
       return { ok: false, error: e.message }
@@ -245,12 +252,13 @@ export default function App() {
   // Live sold-out sync: while the menu is on screen, the server says when stock or the till changes
   // what is sold out, and the cards refresh in place (same section, same order in progress).
   const menuOpen = !!menu
+  const menuDietary = menu?.dietary ?? null
   useEffect(() => {
     if (!menuOpen || typeof EventSource === 'undefined') return
     let alive = true
     const refresh = async () => {
       try {
-        const sections = await loadMenuSections()
+        const sections = await loadMenuSections(menuDietary)
         if (!alive || !sections.length) return
         setMenu((m) => (m && JSON.stringify(m.sections) !== JSON.stringify(sections) ? { ...m, sections } : m))
       } catch { /* offline for a moment: the stream reconnects by itself and sends a fresh event */ }
@@ -261,7 +269,7 @@ export default function App() {
       alive = false
       es.close()
     }
-  }, [menuOpen])
+  }, [menuOpen, menuDietary])
   // The menu stays open while the guest orders (it closes only when they say so): the order card
   // then sits in a column on its left as a popup, also on the tablet, whose screen the menu covers.
 
@@ -300,11 +308,55 @@ export default function App() {
     })
   }, [])
 
+  // Call waiter (F6): the table's active call, kept in step with the staff screen (which acknowledges
+  // and closes it) by polling: every 5 s while a call is active, every 30 s otherwise.
+  const [waiterCall, setWaiterCall] = useState(null)
+  const waiterStatus = useRef(null)
+  const tableNo = String(settings.tableNo || '').trim()
+  useEffect(() => {
+    if (!tableNo) return setWaiterCall(null)
+    let stopped = false
+    const poll = () =>
+      fetch(`/api/oasys/waiter?table_no=${encodeURIComponent(tableNo)}`)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((b) => !stopped && b && setWaiterCall(b.call))
+        .catch(() => {})
+    poll()
+    const id = setInterval(poll, waiterCall ? 5000 : 30000)
+    return () => {
+      stopped = true
+      clearInterval(id)
+    }
+  }, [tableNo, !!waiterCall])
+  // tell Greeny when a waiter acknowledges the call, so it can pass that on
+  useEffect(() => {
+    const was = waiterStatus.current
+    waiterStatus.current = waiterCall?.status || null
+    if (was === 'open' && waiterCall?.status === 'acknowledged') {
+      live.say('[App] A waiter has seen the table\'s call and is on the way. Tell the guest in a few words. Do not call any tool.')
+    }
+  }, [waiterCall, live.say])
+  const tapWaiter = useCallback(
+    async (tool) => {
+      const r = await runTool(tool, {})
+      live.say(`[App] The guest tapped ${tool === 'call_waiter' ? '"Call waiter"' : 'Cancel on the waiter call'} on the screen. Result: ${JSON.stringify(r)}. Respond briefly; do not call the tool again.`)
+      return r
+    },
+    [runTool, live.say]
+  )
+
   // A button tapped on the order card: run the same tool the guest would trigger by voice, then tell Greeny
   const orderAction = useCallback(
     async (tool, args, gesture) => {
       const r = await runTool(tool, args)
+      if (tool === 'rating_pick') return // picking stars or tags: Greeny hears the rating once it is submitted
+      // "Call a manager" on the thanks card: show on the card that the call went through (or why not)
+      if (tool === 'call_waiter') setOrder((o) => (o?.stage === 'rating_thanks' ? { ...o, manager_called: !!r.ok, error: r.ok ? null : r.error } : o))
       const what = {
+        rate_meal: args.rating
+          ? `submitted ${args.rating} star${args.rating === 1 ? '' : 's'} on the rating card${r.ok ? '' : ' (it could not be saved)'}`
+          : 'finished with the receipts; the rating card is now on screen',
+        call_waiter: 'tapped "Call a manager" on the rating card',
         confirm_order: args.confirm ? 'tapped Confirm on the order card (send this round to the kitchen)' : 'tapped Cancel on the order card',
         close_tab: args.payment_method ? `tapped ${args.payment_method} on the bill to pay and close the tab` : 'tapped "Close tab & pay" on the tab card',
         view_tab: 'tapped the tab to see what they have ordered',
@@ -605,6 +657,7 @@ export default function App() {
     tab: () => tabRef.current,
     setTab,
     tableNo: () => String(settings.tableNo || '').trim(),
+    setWaiterCall,
     askDesktop: () => setDesktopAsk(true),
     faceColor: () => faceColor,
     cursorArt: () => cursorArt(faceColor, eyeColor),
@@ -732,6 +785,7 @@ export default function App() {
             table={settings.tableNo || ''}
             onTable={(v) => set('tableNo', v)}
             printer={!!settings.oasysOrdering}
+            vasamo={{ on: !!settings.oasysOrdering, onToggle: setVasamo }}
             gestures={{
               on: settings.gestures !== false,
               map: settings.gestureMap,
@@ -745,13 +799,7 @@ export default function App() {
             }}
           />
           <TabletInfo>
-            <TabletInventory
-              enabled={!!settings.oasysOrdering}
-              onChange={(on) => {
-                set('oasysOrdering', on)
-                if (on) live.say('[App] The inventory is now connected. You can read the menu and take orders. Do not reply to this note.')
-              }}
-            />
+            <TabletInventory enabled={!!settings.oasysOrdering} onChange={setVasamo} />
             {settings.oasysOrdering && <TabletPrinter />}
           </TabletInfo>
           {settings.oasysOrdering && (
@@ -763,7 +811,8 @@ export default function App() {
           <button className="tablet-inventory" onClick={() => pushToast('Games are coming soon')} aria-label="Games">
             Games
           </button>
-          {settings.oasysOrdering && tab &&<TabletTab tab={tab} onOpen={showTab} />}
+          {settings.oasysOrdering && tab && <TabletTab tab={tab} onOpen={showTab} />}
+          <TabletWaiter call={waiterCall} onCall={() => tapWaiter('call_waiter')} onCancel={() => tapWaiter('cancel_waiter_call')} />
         </div>
       )}
       {tabletOnly && cameraOn && <TabletCam stream={camStream} mirror={!rear} who={everyone} />}
@@ -897,9 +946,14 @@ export default function App() {
             <div className="note surface" role="alert">
               <strong>Voice chat unavailable</strong>
               <p>{live.message}</p>
-              <button className="btn sm" onClick={live.toggle}>
-                Try again
-              </button>
+              <div className="note-actions">
+                <button className="btn sm" onClick={live.toggle}>
+                  Try again
+                </button>
+                <button className="btn sm" onClick={live.dismiss}>
+                  Close
+                </button>
+              </div>
             </div>
           )}
         </div>

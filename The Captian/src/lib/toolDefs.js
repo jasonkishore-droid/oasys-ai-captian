@@ -366,12 +366,26 @@ export const TOOL_DECLARATIONS = [
       'See what the restaurant has available right now, with prices in rupees (and portions left, where tracked). ' +
       'Use it when someone asks what dishes or drinks there are, or the price of something. Sold-out dishes are not listed. ' +
       'Always call this (or place_order) before saying any price or whether something is available; never guess from memory. ' +
-      'Menu prices are before tax.',
+      'Menu prices are before tax. ' +
+      'Dietary filter: when a guest says what they cannot eat ("I am Jain", "no onion", "I have a nut allergy", "anything vegan?"), pass diet and/or avoid. ' +
+      'The answer says which dishes the kitchen has confirmed and which are not yet confirmed; follow its instructions exactly and never promise a dish is safe for an allergy. ' +
+      'The filter is remembered for the table: each later round is checked against it.',
     parameters: {
       type: 'OBJECT',
       properties: {
         category: { type: 'STRING', description: 'Optional menu section, e.g. Breakfast & Tiffin, Dosa Varieties, Biryani & Rice, Meals, Chicken Starters, Vegetarian Gravies, Parotta & Breads, Desserts or Beverages.' },
         search: { type: 'STRING', description: 'Optional: a word to look for, like "dosa" or "biryani".' },
+        diet: {
+          type: 'STRING',
+          enum: ['veg', 'egg', 'vegan', 'jain'],
+          description: 'Optional dietary filter when a guest says they are vegetarian (veg), eat egg but no meat (egg), vegan, or Jain (no onion, garlic or root vegetables).',
+        },
+        avoid: {
+          type: 'ARRAY',
+          items: { type: 'STRING', enum: ['onion', 'garlic', 'onion-garlic', 'rootveg', 'gluten', 'dairy', 'egg', 'nuts', 'peanut', 'treenut', 'sesame', 'soy', 'fish', 'shellfish', 'seafood'] },
+          description: 'Optional: what a guest cannot or will not eat, e.g. "no onion" -> ["onion"], "nut allergy" -> ["nuts"], "no prawns or crab" -> ["shellfish"].',
+        },
+        clear_filter: { type: 'BOOLEAN', description: 'True when the guest says to stop filtering, or the guest who asked for it has left.' },
       },
     },
   },
@@ -384,12 +398,24 @@ export const TOOL_DECLARATIONS = [
       'The menu card STAYS OPEN while the guest browses and orders (the order card shows beside it): never close it on your own. ' +
       'Call show_menu with show false only when the guest says to close it ("ok, close the menu"), or when they seem done: then first ask ' +
       '"Shall I close the menu?" and close it only after a yes. ' +
-      'Keep talking briefly about a few dishes; for exact prices or stock use get_menu. When the guest orders, call place_order as usual.',
+      'Keep talking briefly about a few dishes; for exact prices or stock use get_menu. When the guest orders, call place_order as usual. ' +
+      'Pass diet / avoid to show only the dishes that fit what a guest cannot eat (same words as get_menu).',
     parameters: {
       type: 'OBJECT',
       properties: {
         section: { type: 'STRING', description: 'Optional section to open at, e.g. "Desserts", "Dosa Varieties", "Chicken Starters", "Beverages".' },
         show: { type: 'BOOLEAN', description: 'False to close the menu card. Default true.' },
+        diet: {
+          type: 'STRING',
+          enum: ['veg', 'egg', 'vegan', 'jain'],
+          description: 'Optional dietary filter when a guest says they are vegetarian (veg), eat egg but no meat (egg), vegan, or Jain (no onion, garlic or root vegetables).',
+        },
+        avoid: {
+          type: 'ARRAY',
+          items: { type: 'STRING', enum: ['onion', 'garlic', 'onion-garlic', 'rootveg', 'gluten', 'dairy', 'egg', 'nuts', 'peanut', 'treenut', 'sesame', 'soy', 'fish', 'shellfish', 'seafood'] },
+          description: 'Optional: what a guest cannot or will not eat, e.g. "no onion" -> ["onion"], "nut allergy" -> ["nuts"], "no prawns or crab" -> ["shellfish"].',
+        },
+        clear_filter: { type: 'BOOLEAN', description: 'True when the guest says to stop filtering, or the guest who asked for it has left.' },
       },
     },
   },
@@ -474,6 +500,54 @@ export const TOOL_DECLARATIONS = [
     description:
       'Show what the table has ordered so far on its open tab (every round, and the running total) when the guest asks ' +
       '"what have we ordered?" or "how much is it so far?". It does not close the tab.',
+    parameters: { type: 'OBJECT', properties: {} },
+  },
+  {
+    name: 'rate_meal',
+    description:
+      'Feedback after the tab is paid. Call it WITHOUT a rating once the receipt question is settled: it shows a 1 to 5 star rating card. ' +
+      'Ask once, briefly; rating is optional, never push. When the guest gives a rating, call it again WITH the rating, plus what they liked or ' +
+      'what could be better if they said, and any comment in their words. Calling again for the same bill updates it (e.g. a comment added later).',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        rating: { type: 'INTEGER', description: 'Stars from 1 (poor) to 5 (excellent). Map words: "excellent" 5, "good" 4, "okay" 3, "not great" 2, "bad" 1.' },
+        liked: {
+          type: 'ARRAY',
+          items: { type: 'STRING', enum: ['food', 'service', 'speed', 'value', 'ambience', 'cleanliness'] },
+          description: 'Optional: what they praised.',
+        },
+        improve: {
+          type: 'ARRAY',
+          items: { type: 'STRING', enum: ['food', 'service', 'speed', 'value', 'ambience', 'cleanliness'] },
+          description: 'Optional: what could be better.',
+        },
+        comment: { type: 'STRING', description: 'Optional: their comment, close to their own words, e.g. "the sambar was too salty".' },
+      },
+    },
+  },
+  {
+    name: 'call_waiter',
+    description:
+      'Call a human waiter to the table. Call it straight away, without asking for confirmation, when a guest asks for a waiter, ' +
+      'for someone to come over, for help you cannot give, or for something only staff can bring (water, cutlery, napkins, cleaning up a spill). ' +
+      'Do NOT use it for ordering food or drinks (place_order) or for paying (close_tab), unless the guest says they want a person for that. ' +
+      'After it, tell the guest in one short sentence that a waiter has been called. Calling again while a call is waiting reminds the staff.',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        reason: {
+          type: 'STRING',
+          enum: ['help', 'water', 'bill', 'cutlery', 'clean', 'other'],
+          description: 'Why: help (general, the default), water, bill (wants to pay with a person), cutlery (also napkins, plates), clean (spill, clear the table), other.',
+        },
+        note: { type: 'STRING', description: 'Optional: what they need in a few words, e.g. "two glasses of water", "spilled coffee", "high chair".' },
+      },
+    },
+  },
+  {
+    name: 'cancel_waiter_call',
+    description: 'Cancel the table\'s waiter call, only when the guest says they no longer need the waiter.',
     parameters: { type: 'OBJECT', properties: {} },
   },
   {

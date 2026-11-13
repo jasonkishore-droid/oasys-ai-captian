@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import Icon from './icons.jsx'
 import { checkPrinter, printTestPage } from './printerTest.js'
 import GestureRows from './GestureSettings.jsx'
+import { useVasamoStatus } from './TabletInventory.jsx'
 
 const VERSIONS = [
   { id: 'tablet', label: 'Tablet', hint: 'The tablet on its stand, orders on its screen' },
@@ -36,7 +37,28 @@ function PrinterCheck() {
   )
 }
 
-export default function TabletSettings({ version, onVersion, size = 1, maxSize = 1, onSize, table = '', onTable, printer = false, gestures = null }) {
+// Vasamo: the Stock Management app. On, Greeny can read the menu and take orders.
+function VasamoSwitch({ on, onToggle }) {
+  const state = useVasamoStatus(on)
+  const kind = state?.ok === true ? 'ok' : state?.ok === false ? 'bad' : 'wait'
+  return (
+    <>
+      <div className="tablet-menu-title tablet-size-title">
+        Connect to Vasamo
+        <label className="tablet-gesture-on">
+          <input type="checkbox" checked={on} onChange={(e) => onToggle(e.target.checked)} /> {on ? 'On' : 'Off'}
+        </label>
+      </div>
+      {on && state && (
+        <p className={`tablet-printer-status ${kind}`} role="status">
+          {state.text}
+        </p>
+      )}
+    </>
+  )
+}
+
+export default function TabletSettings({ version, onVersion, size = 1, maxSize = 1, onSize, table = '', onTable, printer = false, gestures = null, vasamo = null }) {
   const [open, setOpen] = useState(false)
   const [gesturesOpen, setGesturesOpen] = useState(false)
   const box = useRef(null)
@@ -114,6 +136,7 @@ export default function TabletSettings({ version, onVersion, size = 1, maxSize =
               />
             </>
           )}
+          {vasamo && <VasamoSwitch on={vasamo.on} onToggle={vasamo.onToggle} />}
           {gestures && (
             <>
               <div className="tablet-menu-title tablet-size-title">

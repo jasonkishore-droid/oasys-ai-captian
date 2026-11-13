@@ -37,6 +37,8 @@ export function inventoryConfig(appEnv = {}) {
     dir,
     // open tabs (dining sessions) are kept in this app's own database
     tabsFile: resolve(ROOT, appEnv.TABS_DB || './data/tabs.sqlite3'),
+    // the Menu Card project: its dietary tags and the owner's sign-off drive the menu's dietary filters
+    menuCardDir: resolve(ROOT, appEnv.MENU_CARD_DIR || '../Menue Card'),
     dbFile: isAbsolute(sqlite) ? sqlite : resolve(appEnv.INVENTORY_DB ? ROOT : dir, sqlite),
     timezone: env.TIMEZONE || 'Asia/Kolkata',
     restaurant: {

@@ -1,5 +1,6 @@
 import { describePolicy, parseColor, resolveNames } from './lib/wake.js'
 import { toSeconds } from './useTimers.js'
+import { ALLERGY_AVOIDS, dietaryLabel, dietaryQuery, dietFrom } from './lib/dietary.js'
 
 const EMOTIONS = ['neutral', 'happy', 'curious', 'surprised', 'sleepy']
 
@@ -64,10 +65,10 @@ async function desktop(c, action, args = {}) {
 }
 
 // The restaurant's Stock Management app, reached through server/oasysApi.js.
-// Only used while "Connect to Oasys Bay" is on in settings.
+// Only used while "Connect to Vasamo" is on in settings.
 const OASYS_OFF = {
   ok: false,
-  error: 'Ordering is switched off. Tell the user to turn on "Connect to Oasys Bay" in Settings (Tracking tab).',
+  error: 'Ordering is switched off. Tell the user to turn on "Connect to Vasamo" in Settings (Tracking tab) or in the tablet gear menu.',
 }
 
 async function oasys(path, body) {
@@ -87,6 +88,13 @@ async function oasys(path, body) {
 // whole round (kitchen_note). Same limits as the server (server/inventory/orders.js).
 const NOTE_MAX = 100
 const KITCHEN_NOTE_MAX = 200
+// call waiter: same reasons and limit as server/inventory/waiter.js
+const WAITER_REASONS = ['help', 'water', 'bill', 'cutlery', 'clean', 'other']
+const WAITER_NOTE_MAX = 120
+// feedback after payment: same tags and limit as server/inventory/feedback.js
+export const FEEDBACK_TAGS = ['food', 'service', 'speed', 'value', 'ambience', 'cleanliness']
+const FEEDBACK_COMMENT_MAX = 500
+const knownTags = (list) => (Array.isArray(list) ? [...new Set(list.map((t) => String(t).toLowerCase().trim()))].filter((t) => FEEDBACK_TAGS.includes(t)) : undefined)
 const cleanNote = (s, max) => String(s ?? '').replace(/\s+/g, ' ').trim().slice(0, max)
 // "less oil" + "no onion" -> "less oil; no onion" (a request already there is not repeated)
 const joinNotes = (a, b, max = KITCHEN_NOTE_MAX) => {
@@ -171,6 +179,32 @@ export function createToolRunner(ctx) {
   let lastOrder = null // the order just placed, for the e-receipt
   let pendingReceipt = null // { bill_no, email } waiting for the guest to confirm the address (send_receipt)
   let tabEmail = '' // an address the guest mentioned while ordering, suggested for the e-receipt when the tab is paid
+  // The dietary filter a guest asked for ("I'm Jain", "no onion"): used by get_menu / show_menu when
+  // passed, and each new round is checked against it. Cleared when the tab is paid or on request.
+  let tableDiet = null // { diet, avoid }
+  const passing = new Map() // dietaryQuery string -> { ids: Set, at }: the dishes that pass, cached for a minute
+  async function passingIds(f) {
+    const q = dietaryQuery(f).toString()
+    const hit = passing.get(q)
+    if (hit && Date.now() - hit.at < 60_000) return hit.ids
+    const { status, body } = await oasys(`menu?${q}`)
+    if (status !== 200) return null
+    const ids = new Set((body.dishes || []).map((d) => d.id))
+    passing.set(q, { ids, at: Date.now() })
+    return ids
+  }
+
+  // the rating card after payment: what has been tapped so far, and what was saved for this bill
+  let rating = null // { bill_no, stars, tags: Set, saved: stars | 0 }
+
+  // the bill the rating is for: the tab just paid, for up to an hour
+  const ratingFor = () => {
+    if (!lastOrder || Date.now() - lastOrder.at > 60 * 60_000) return null
+    if (rating?.bill_no !== lastOrder.bill_no) rating = { bill_no: lastOrder.bill_no, stars: 0, tags: new Set(), saved: 0 }
+    return rating
+  }
+  const showRating = (r, error = null) =>
+    ctx.current.showOrder?.({ stage: 'rating', bill_no: r.bill_no, table: lastOrder.table, rating: r.stars, tags: [...r.tags], ...(error && { error }) })
 
   // The table's open tab (its dining session), as the server has it. The app keeps the session id
   // (so a reload carries on with the same tab); with none, the table's open tab is looked up.
@@ -193,6 +227,107 @@ export function createToolRunner(ctx) {
   })
 
   const handlers = {
+    // Call waiter (F6): works without "Connect to Vasamo", as it needs only the table number.
+    async call_waiter({ reason, note } = {}) {
+      const c = ctx.current
+      const table = c.tableNo?.() || ''
+      if (!table) {
+        return {
+          ok: false,
+          error: 'This tablet has no table number set, so the staff would not know where to go.',
+          next: 'Apologise and ask the guest to wave to a waiter. Staff can set the table number in the tablet\'s settings.',
+        }
+      }
+      const r = WAITER_REASONS.includes(String(reason || '').toLowerCase()) ? String(reason).toLowerCase() : 'help'
+      const { status, body } = await oasys('waiter/call', {
+        table_no: table, reason: r, note: cleanNote(note, WAITER_NOTE_MAX) || undefined, session_id: c.tab?.()?.session_id, source: 'voice',
+      })
+      if (status !== 200 && status !== 201) return { ok: false, error: body.error || 'The waiter could not be called.', next: 'Say so and ask the guest to wave to a waiter.' }
+      c.setWaiterCall?.(body.call)
+      return {
+        ok: true,
+        table,
+        already_called: body.repeated,
+        waiter_on_the_way: body.call.status === 'acknowledged',
+        next: body.repeated
+          ? 'Say you have reminded the staff and someone will be with them shortly.'
+          : 'Say a waiter has been called and will be with them shortly. Do not promise a time.',
+      }
+    },
+
+    async cancel_waiter_call() {
+      const c = ctx.current
+      const table = c.tableNo?.() || ''
+      if (!table) return { ok: false, error: 'No table number is set.' }
+      const { status, body } = await oasys('waiter/cancel', { table_no: table })
+      if (status !== 200) return { ok: false, error: body.error || 'The call could not be cancelled.' }
+      c.setWaiterCall?.(null)
+      return { ok: true, cancelled: !!body.call, next: body.call ? 'Say the waiter call is cancelled.' : 'There was no waiter call to cancel. Say so briefly.' }
+    },
+
+    // Feedback (F8), after the tab is paid. Without a rating it shows the rating card; with one it is
+    // saved (rating again, or adding a comment later, updates the same bill's feedback).
+    async rate_meal({ rating: stars, liked, improve, comment, via } = {}) {
+      if (!ctx.current.oasysConnected()) return OASYS_OFF
+      const r = ratingFor()
+      if (!r) return { ok: false, error: 'There is no recently paid bill to rate.' }
+      const note = cleanNote(comment, FEEDBACK_COMMENT_MAX)
+      let n = Number(stars)
+      if (!(Number.isInteger(n) && n >= 1 && n <= 5)) n = note && r.saved ? r.saved : 0 // a comment after rating keeps the stars
+      if (!n) {
+        showRating(r)
+        return {
+          ok: true,
+          shown: true,
+          next:
+            'The rating card is on screen. In one short sentence, ask how everything was, from 1 to 5 stars (they can also tap). ' +
+            'It is optional: if they would rather not, thank them and stop. When they answer, call rate_meal with the rating, ' +
+            'and liked / improve if they said what was good or could be better.',
+        }
+      }
+      const tapped = [...r.tags]
+      const body = {
+        bill_no: r.bill_no, rating: n, source: via === 'tap' ? 'tap' : 'voice', // via: 'tap' from the card's Submit
+        // tags tapped on the card count as liked (4-5 stars) or could-be-better (1-3 stars)
+        liked: knownTags(liked) ?? (n >= 4 && tapped.length ? tapped : undefined),
+        improve: knownTags(improve) ?? (n <= 3 && tapped.length ? tapped : undefined),
+        ...(note && { comment: note }),
+      }
+      const { status, body: res } = await oasys('feedback', body)
+      if (status !== 200 && status !== 201) {
+        const error = res.error || 'The rating could not be saved.'
+        showRating(r, error)
+        return { ok: false, error }
+      }
+      r.stars = n
+      r.saved = n
+      ctx.current.showOrder?.({ stage: 'rating_thanks', bill_no: r.bill_no, table: lastOrder.table, rating: n })
+      return {
+        ok: true,
+        saved: true,
+        rating: n,
+        next:
+          n <= 2
+            ? 'Apologise sincerely in one or two sentences and ask what went wrong, if they want to say (then call rate_meal again with the same rating and their comment). ' +
+              'Offer to send a manager over: if they want that, call call_waiter with reason "other" and a short note. The card has a button for it too.'
+            : 'Thank them warmly in one short sentence. If they add a comment, call rate_meal again with the same rating and the comment.',
+      }
+    },
+
+    // the rating card's taps (not a voice tool): pick the stars, or switch a tag on or off
+    rating_pick({ rating: stars, tag } = {}) {
+      const r = ratingFor()
+      if (!r) return { ok: false, error: 'There is no recently paid bill to rate.' }
+      if (Number.isInteger(stars) && stars >= 1 && stars <= 5) {
+        // the tags change meaning across 3 and 4 stars (liked vs could be better), so start them again
+        if (r.stars && (r.stars >= 4) !== (stars >= 4)) r.tags.clear()
+        r.stars = stars
+      }
+      if (FEEDBACK_TAGS.includes(tag)) r.tags.has(tag) ? r.tags.delete(tag) : r.tags.add(tag)
+      showRating(r)
+      return { ok: true, rating: r.stars, tags: [...r.tags] }
+    },
+
     list_users() {
       const c = ctx.current
       const users = c.users()
@@ -445,28 +580,66 @@ export function createToolRunner(ctx) {
     },
 
     // The menu card carousel on screen, opened at a section if one was asked for.
-    async show_menu({ section, show } = {}) {
+    async show_menu({ section, show, diet, avoid, clear_filter } = {}) {
       if (show === false) {
         ctx.current.showMenu?.(null)
         return { ok: true, showing: false }
       }
-      const r = await ctx.current.showMenu?.(String(section || '').trim())
+      const f = clear_filter ? null : dietFrom({ diet, avoid })
+      if (clear_filter) tableDiet = null
+      if (f) tableDiet = f
+      const r = await ctx.current.showMenu?.(String(section || '').trim(), f)
       if (!r?.ok) return { ok: false, error: r?.error || 'The menu could not be shown.' }
       return {
         ok: true,
         showing: true,
         open_at: r.section,
         sections: r.sections,
+        ...(f && { filtered: dietaryLabel(f) }),
         ...(section && !r.matched && { note: `There is no "${section}" section; it is open at ${r.section}.` }),
-        next: 'The menu card is on screen. Say a short line about this section; they can swipe through it or ask you to turn to another section.',
+        next:
+          'The menu card is on screen. Say a short line about this section; they can swipe through it or ask you to turn to another section.' +
+          (f ? ' It shows only dishes that fit the filter. Dishes marked "not yet confirmed by the kitchen" must be checked with staff; never promise they are suitable.' : ''),
       }
     },
 
-    async get_menu({ category, search } = {}) {
+    async get_menu({ category, search, diet, avoid, clear_filter } = {}) {
       if (!ctx.current.oasysConnected()) return OASYS_OFF
+      const f = clear_filter ? null : dietFrom({ diet, avoid })
+      if (clear_filter) tableDiet = null
       const q = new URLSearchParams({ ...(category && { section: category }), ...(search && { search }) })
+      for (const [k, v] of dietaryQuery(f)) q.set(k, v)
       const { status, body } = await oasys(`menu${q.size ? `?${q}` : ''}`)
-      if (status !== 200) return { ok: false, error: body.error || 'Could not load the Oasys Bay menu.' }
+      if (status !== 200) return { ok: false, error: body.error || 'Could not load the Vasamo menu.' }
+      if (f) {
+        tableDiet = f
+        const dishes = (body.dishes || []).filter((d) => !d.sold_out)
+        const names = (list) => ({ names: list.slice(0, 40).map((d) => d.name), ...(list.length > 40 && { more: list.length - 40 }) })
+        const sure = dishes.filter((d) => d.confirmed)
+        const unsure = dishes.filter((d) => !d.confirmed)
+        const allergy = f.avoid.some((a) => ALLERGY_AVOIDS.has(a))
+        const signed = body.dietary?.signed_off
+        return {
+          ok: true,
+          filter: dietaryLabel(f),
+          ...(sure.some((d) => d.fit === 'yes') && { suitable: names(sure.filter((d) => d.fit === 'yes')) }),
+          ...(sure.some((d) => d.fit === 'with-changes') && { suitable_without_the_usual_sides: names(sure.filter((d) => d.fit === 'with-changes')) }),
+          ...(unsure.length && { not_yet_confirmed_by_kitchen: names(unsure.map((d) => (d.fit === 'with-changes' ? { name: `${d.name} (without the usual sambar and chutneys)` } : d))) }),
+          tags_signed_off: signed ? `by ${signed.by} on ${signed.on}, ${signed.dishes} dishes` : false,
+          ...(!dishes.length && { note: 'Nothing on the menu fits that right now.' }),
+          next: [
+            'Suggest a few fitting dishes; do not read out the whole list.',
+            unsure.length &&
+              'The kitchen has NOT yet confirmed the tags for the dishes under not_yet_confirmed_by_kitchen: say they should fit but the guest must check with the staff before ordering. Never promise.',
+            dishes.some((d) => d.fit === 'with-changes') &&
+              'Some dishes fit only without the sambar and chutneys they usually come with (those have onion and garlic): offer to ask the kitchen for that as a special request.',
+            allergy &&
+              'This is about an allergy: ALWAYS also tell the guest to mention the allergy to the staff, because the kitchen is shared and some ingredients (like asafoetida, which can contain wheat) are not tagged. Never call a dish safe or allergen-free.',
+            (f.diet === 'jain' || f.avoid.some((a) => ['onion', 'garlic', 'onion-garlic'].includes(a))) &&
+              'They can also ask for another dish without onion or garlic as a special request, but only the kitchen can say whether that works.',
+          ].filter(Boolean).join(' '),
+        }
+      }
       return {
         ok: true,
         currency: 'INR (rupees)',
@@ -542,9 +715,15 @@ export function createToolRunner(ctx) {
       }
       pendingOrder = { ...order, items: itemsOf(body.lines), kitchen_note: roundNote || null, suggestedEmail, card, at: Date.now() }
       ctx.current.showOrder?.({ stage: 'pending', ...card })
+      // a dish that doesn't fit the dietary filter someone at the table asked for
+      const fits = tableDiet ? await passingIds(tableDiet) : null
+      const clash = fits ? [...new Set(body.lines.filter((l) => !fits.has(l.dish_id)).map((l) => l.name))] : []
       return {
         ok: true,
         round,
+        ...(clash.length && {
+          dietary_check: { asked_for: dietaryLabel(tableDiet), does_not_fit: clash },
+        }),
         ...(kept.length && { added_to_waiting_round: true }),
         order: body.lines.map((l) => `${l.quantity} x ${l.name}${l.note ? ` (${l.note})` : ''} at ${rupees(l.unit_price)} = ${rupees(l.line_total)}`),
         ...(roundNote && { kitchen_note: roundNote }),
@@ -556,7 +735,11 @@ export function createToolRunner(ctx) {
           'Do NOT say any price or total out loud: the amounts are on the card on screen. ' +
           'Say an amount only if the guest asks for it, and then use ONLY the figures in this result. ' +
           'Ask the guest to confirm, then call confirm_order with their answer. ' +
-          'Do NOT ask how they will pay: the order goes on their tab, which stays open while they eat and is paid only when they ask to close it.',
+          'Do NOT ask how they will pay: the order goes on their tab, which stays open while they eat and is paid only when they ask to close it.' +
+          (clash.length
+            ? ` Earlier a guest asked for: ${dietaryLabel(tableDiet)}. ${clash.join(', ')} ${clash.length === 1 ? 'does' : 'do'} not fit that. ` +
+              'Before confirming, mention it once, gently ("just to check, that one has onion, is it for you?"). If it is for someone else, carry on.'
+            : ''),
       }
     },
 
@@ -710,6 +893,7 @@ export function createToolRunner(ctx) {
         return { ok: false, error: body.error || 'The tab could not be closed.' }
       }
       setTab(null)
+      tableDiet = null // the next guests at this table start without a filter
       if (!body.bill) return { ok: true, closed: true, note: 'The tab had nothing on it, so nothing was billed.' }
       // a registered guest (recognised by face, else by voice) may have an address from last time
       const guest = ctx.current.onCamera() || ctx.current.speaker() || ''
@@ -735,7 +919,8 @@ export function createToolRunner(ctx) {
             ? `${guest} had the e-receipt sent to ${knownEmail} last time. If they want an e-receipt, ask whether to send it to that same address or to a new one, ` +
               'then call set_receipt_email with the address they choose. '
             : '') +
-          'If yes, call set_receipt_email with the address. Never send anything until they have confirmed the address.',
+          'If yes, call set_receipt_email with the address. Never send anything until they have confirmed the address. ' +
+          'Once the receipts are settled (or they want none), call rate_meal without a rating to show the rating card.',
         ...(knownEmail && { email_used_last_time: knownEmail }),
       }
     },
@@ -807,7 +992,7 @@ export function createToolRunner(ctx) {
       pendingReceipt = null
       if (lastOrder?.guest) rememberEmail(lastOrder.guest, body.to) // offered again on their next order
       show({ stage: 'receipt_sent', ...lastOrder, email: body.to })
-      return { ok: true, sent: true, to: body.to, bill_no }
+      return { ok: true, sent: true, to: body.to, bill_no, next: 'Say it is sent, then call rate_meal without a rating to ask how the meal was.' }
     },
   }
 

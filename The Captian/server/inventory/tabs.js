@@ -50,6 +50,43 @@ export function openTabs(file) {
     db.exec("ALTER TABLE rounds ADD COLUMN kitchen_status TEXT NOT NULL DEFAULT 'new'")
     db.exec('ALTER TABLE rounds ADD COLUMN ready_at TEXT')
   }
+  // "Call waiter" alerts from the tables (see waiter.js). A table has at most one active call:
+  // open (waiting) or acknowledged (a waiter is on the way). Calling again only bumps `repeats`.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS waiter_calls (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      table_no TEXT NOT NULL,
+      session_id INTEGER,
+      reason TEXT NOT NULL DEFAULT 'help',            -- help | water | bill | cutlery | clean | other
+      note TEXT,
+      source TEXT NOT NULL DEFAULT 'button',          -- button | voice
+      status TEXT NOT NULL DEFAULT 'open',            -- open | acknowledged | done | cancelled
+      repeats INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      acknowledged_at TEXT,
+      acknowledged_by TEXT,
+      closed_at TEXT
+    );
+    CREATE INDEX IF NOT EXISTS waiter_calls_active ON waiter_calls (status, table_no);
+  `)
+  // Feedback after payment (see feedback.js): one row per bill, updated if the guest rates again
+  // (e.g. taps the stars, then adds a comment by voice). No guest name or face is stored with it.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS feedback (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      bill_no TEXT NOT NULL UNIQUE,
+      session_id INTEGER,
+      table_no TEXT,
+      rating INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 5),
+      liked TEXT NOT NULL DEFAULT '[]',              -- JSON: ['food', 'service', ...]
+      improve TEXT NOT NULL DEFAULT '[]',
+      comment TEXT,
+      source TEXT NOT NULL DEFAULT 'tap',             -- tap | voice
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+  `)
   const get = (sql, ...p) => db.prepare(sql).get(...p) ?? null
   const all = (sql, ...p) => db.prepare(sql).all(...p)
   const run = (sql, ...p) => db.prepare(sql).run(...p)
@@ -151,5 +188,74 @@ export function openTabs(file) {
     if (!r.changes) throw new InventoryError(404, 'Ticket not found')
   }
 
-  return { session, openFor, open, addRound, close, voidSession, reserved, roundsSince, board, setKitchenStatus, shutdown: () => db.close() }
+  // ---- waiter calls ----
+  const ACTIVE = "status IN ('open', 'acknowledged')"
+  const call = (id) => get('SELECT * FROM waiter_calls WHERE id = ?', Number(id) || 0)
+  const activeCallFor = (tableNo) => get(`SELECT * FROM waiter_calls WHERE ${ACTIVE} AND table_no = ? ORDER BY id DESC LIMIT 1`, tableNo)
+
+  // a new call, or the table's active one again (repeats + 1, reason and note updated if given)
+  function callWaiter({ table_no, session_id = null, reason = 'help', note = null, source = 'button' }) {
+    const t = now()
+    const existing = activeCallFor(table_no)
+    if (existing) {
+      // a plain "help" again keeps the more specific reason ("water") already on the call
+      run("UPDATE waiter_calls SET repeats = repeats + 1, reason = CASE WHEN ? = 'help' THEN reason ELSE ? END, note = COALESCE(?, note), updated_at = ? WHERE id = ?",
+        reason, reason, note, t, existing.id)
+      return { call: call(existing.id), repeated: true }
+    }
+    const { id } = get(
+      `INSERT INTO waiter_calls (table_no, session_id, reason, note, source, status, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, 'open', ?, ?) RETURNING id`,
+      table_no, session_id, reason, note, source, t, t
+    )
+    return { call: call(id), repeated: false }
+  }
+
+  // open -> acknowledged -> done; open or acknowledged -> cancelled (the guest no longer needs it)
+  function setCallStatus(id, status, by = null) {
+    const c = call(id)
+    if (!c) throw new InventoryError(404, 'Waiter call not found')
+    if (c.status === status) return c
+    const allowed = { acknowledged: ['open'], done: ['open', 'acknowledged'], cancelled: ['open', 'acknowledged'] }[status]
+    if (!allowed?.includes(c.status)) throw new InventoryError(409, `This call is already ${c.status}`)
+    const t = now()
+    if (status === 'acknowledged') run("UPDATE waiter_calls SET status = 'acknowledged', acknowledged_at = ?, acknowledged_by = ?, updated_at = ? WHERE id = ?", t, by, t, c.id)
+    else run('UPDATE waiter_calls SET status = ?, closed_at = ?, updated_at = ? WHERE id = ?', status, t, t, c.id)
+    return call(c.id)
+  }
+
+  // for the staff screen (KDS / floor view): every active call, oldest first
+  const activeCalls = () => all(`SELECT * FROM waiter_calls WHERE ${ACTIVE} ORDER BY id`)
+
+  // ---- feedback ----
+  const feedbackRow = (r) => r && { ...r, liked: JSON.parse(r.liked), improve: JSON.parse(r.improve) }
+  const sessionByBill = (billNo) => get('SELECT id, table_no FROM sessions WHERE bill_no = ?', billNo)
+  const feedbackFor = (billNo) => feedbackRow(get('SELECT * FROM feedback WHERE bill_no = ?', billNo))
+
+  // save the rating for a bill; rating again replaces it, and a comment or tags left out are kept
+  function saveFeedback({ bill_no, session_id, table_no, rating, liked, improve, comment, source }) {
+    const t = now()
+    run(
+      `INSERT INTO feedback (bill_no, session_id, table_no, rating, liked, improve, comment, source, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT (bill_no) DO UPDATE SET rating = excluded.rating,
+         liked = CASE WHEN ? THEN excluded.liked ELSE liked END,
+         improve = CASE WHEN ? THEN excluded.improve ELSE improve END,
+         comment = COALESCE(excluded.comment, comment), source = excluded.source, updated_at = excluded.updated_at`,
+      bill_no, session_id, table_no, rating, JSON.stringify(liked || []), JSON.stringify(improve || []), comment, source, t, t,
+      liked ? 1 : 0, improve ? 1 : 0
+    )
+    return feedbackFor(bill_no)
+  }
+
+  // newest first, for the manager's dashboard (F14)
+  const feedbackList = ({ sinceId = 0, limit = 100 } = {}) =>
+    all('SELECT * FROM feedback WHERE id > ? ORDER BY id DESC LIMIT ?', sinceId, limit).map(feedbackRow)
+
+  return {
+    session, openFor, open, addRound, close, voidSession, reserved, roundsSince, board, setKitchenStatus,
+    call, activeCallFor, callWaiter, setCallStatus, activeCalls,
+    sessionByBill, feedbackFor, saveFeedback, feedbackList,
+    shutdown: () => db.close(),
+  }
 }

@@ -20,6 +20,19 @@ function fromBase64(b64) {
   return out
 }
 
+// The model sometimes writes a tool call into its reply instead of making it,
+// e.g. "*(show_emotion(emotion='happy', seconds=6))*". Words arrive in pieces,
+// so an unclosed *... is hidden until it closes (or for good if it never does).
+export function cleanSpoken(text) {
+  return text
+    .replace(/\*[^*]*(\*|$)/g, ' ') // *stage directions*
+    .replace(/\b[a-z]+(?:_[a-z]+)+\s*\([^()]*(\)|$)/g, ' ') // tool_name(args)
+    .replace(/\(\s*\)?\s*$|\(\s*\)/g, ' ') // brackets left empty by the above
+    .replace(/\s+([.,!?])/g, '$1')
+    .replace(/\s{2,}/g, ' ')
+    .trim()
+}
+
 export function useLive({ face = '', speaker = null, onPcm, voice = '', language = '', character = 'greeny', onToolCall } = {}) {
   const [state, setState] = useState('off') // off | connecting | live | error
   const [message, setMessage] = useState('')
@@ -69,13 +82,14 @@ export function useLive({ face = '', speaker = null, onPcm, voice = '', language
 
   // words keep arriving in pieces: extend the current line while the same side
   // is talking, start a new one when the other side takes over
+  // lines keep the raw words; what is shown has written-out tool calls removed
   const addWords = useCallback((who, text) => {
     const l = lines.current
     const last = l[l.length - 1]
-    if (last && last.who === who) l[l.length - 1] = { ...last, text: last.text + text }
-    else l.push({ id: (last?.id ?? 0) + 1, who, text })
+    if (last && last.who === who) l[l.length - 1] = { ...last, raw: last.raw + text }
+    else l.push({ id: (last?.id ?? 0) + 1, who, raw: text })
     if (l.length > 8) l.shift()
-    setTranscript([...l])
+    setTranscript(l.map((x) => ({ id: x.id, who: x.who, text: x.who === 'greeny' ? cleanSpoken(x.raw) : x.raw })).filter((x) => x.text))
   }, [])
 
   const fail = useCallback((msg) => {
@@ -327,5 +341,11 @@ export function useLive({ face = '', speaker = null, onPcm, voice = '', language
 
   const toggle = useCallback(() => (rt.current ? (stop(), setState('off'), setMessage('')) : start()), [start, stop])
 
-  return { state, message, speaking, thinking, caption, transcript, levelRef, toggle, end, say, sendImage, muted, toggleMute, stopTalking }
+  // close the error note without trying again
+  const dismiss = useCallback(() => {
+    setState((s) => (s === 'error' ? 'off' : s))
+    setMessage('')
+  }, [])
+
+  return { state, message, speaking, thinking, caption: cleanSpoken(caption), transcript, levelRef, toggle, end, dismiss, say, sendImage, muted, toggleMute, stopTalking }
 }

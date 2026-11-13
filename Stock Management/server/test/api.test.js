@@ -160,6 +160,32 @@ test('purchase adds stock and updates weighted-average cost', async () => {
   assert.ok(Math.abs(after.avg_cost - (ing.avg_cost + 50)) < 0.02, `avg ${after.avg_cost}`);
 });
 
+test('restock: preview changes nothing; confirming orders every low and out-of-stock item once', async () => {
+  assert.equal((await agents.cashier.post('/api/purchases/restock').send({ dry_run: true })).status, 403);
+  const tomato = await ingredientByName('Tomato');
+  const salt = await ingredientByName('Salt');
+  // one item out of stock, one low (below par)
+  assert.equal((await agents.manager.post(`/api/ingredients/${tomato.id}/movements`).send({ type: 'count', quantity: 0 })).status, 201);
+  assert.equal((await agents.manager.put(`/api/ingredients/${salt.id}`).send({ par_level: salt.quantity + 5, reorder_qty: 2 })).status, 200);
+
+  const preview = await agents.manager.post('/api/purchases/restock').send({ dry_run: true });
+  assert.equal(preview.status, 200);
+  assert.deepEqual(preview.body.purchases, []);
+  const names = preview.body.items.map((i) => i.name);
+  assert.ok(names.includes('Tomato') && names.includes('Salt'), 'out-of-stock and low items are listed');
+  assert.equal((await ingredientByName('Tomato')).quantity, 0, 'a preview does not change stock');
+
+  const done = await agents.manager.post('/api/purchases/restock').send({});
+  assert.equal(done.status, 201, JSON.stringify(done.body));
+  assert.ok(done.body.purchases.length >= 1);
+  assert.ok((await ingredientByName('Tomato')).quantity > 0);
+  const saltAfter = await ingredientByName('Salt');
+  assert.ok(saltAfter.quantity >= saltAfter.par_level, 'a low item is back to par or above');
+
+  const again = await agents.manager.post('/api/purchases/restock').send({ dry_run: true });
+  assert.ok(!again.body.items.some((i) => i.name === 'Tomato' || i.name === 'Salt'), 'nothing is ordered twice');
+});
+
 test('wastage needs a reason; stock count records the variance', async () => {
   const ing = await ingredientByName('Tomato');
   assert.equal((await agents.manager.post(`/api/ingredients/${ing.id}/movements`).send({ type: 'wastage', quantity: 1 })).status, 400);

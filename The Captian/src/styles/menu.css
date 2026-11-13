@@ -4,8 +4,8 @@
   --paper: #f6edd9;
   --ink: #2b1d14;
   --ink-soft: #6b5443;
-  --accent: #8a2b1c;
-  --leather: #4a1014;
+  --accent: #1d4ed8; /* titles, ornament and picked dishes: the same blue family as the buttons */
+  --leather: #0b0b0b; /* the card frame is black */
   /* the filled buttons (Review order, Talk to Greeny, Done) and button hovers */
   --mc-blue: #2563eb;
   --mc-blue-hover: #1d4ed8;
@@ -23,6 +23,7 @@
   backdrop-filter: blur(6px);
   font-family: 'Cormorant Garamond', Georgia, serif;
   padding-left: var(--order-room, 0px);
+  padding-right: var(--dock-room, 0px); /* the menu bar stands here on a wide screen */
   transition: padding-left 600ms cubic-bezier(0.2, 0.8, 0.2, 1);
   animation: mc-in 420ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
@@ -67,14 +68,15 @@
   position: absolute;
   inset: 0;
   backface-visibility: hidden;
-  border-radius: 10px;
-  background-color: var(--paper);
-  background-image: var(--grain), radial-gradient(ellipse at 50% 50%, transparent 55%, rgba(150, 110, 50, 0.2) 100%);
-  box-shadow: 0 0 0 1px rgba(138, 98, 32, 0.55), 0 0 0 5px var(--leather), 0 0 0 6px rgba(201, 151, 59, 0.7), 0 26px 40px rgba(0, 0, 0, 0.55);
+  border-radius: 2px; /* nearly square corners */
+  background-color: #fff; /* plain white card face: no paper grain or darkened edges */
+  box-shadow: 0 0 0 1px rgba(201, 162, 74, 0.9), 0 0 0 6px var(--leather), 0 0 0 7px rgba(201, 162, 74, 0.75), 0 26px 40px rgba(0, 0, 0, 0.55);
   transition: filter 0.5s, opacity 0.45s;
   cursor: pointer;
 }
 .mc-card.active { cursor: default; }
+/* a fine inner rule, for a more formal, printed look */
+.mc-card::after { content: ''; position: absolute; inset: 7px; border: 1px solid rgba(201, 162, 74, 0.55); border-radius: 1px; pointer-events: none; }
 .mc-inner {
   container-type: inline-size;
   height: 100%;
@@ -84,19 +86,22 @@
   color: var(--ink);
 }
 .mc-head { text-align: center; }
-.mc-count {
-  margin: 0 0 4px;
+.mc-folio {
+  flex: none;
+  margin-top: 8px;
+  text-align: center;
   font-family: 'Cinzel', serif;
-  font-size: 3.2cqw;
-  letter-spacing: 0.3em;
-  text-transform: uppercase;
+  font-size: 5.2cqw; /* the page number, at the foot of the card */
+  font-weight: 700;
+  letter-spacing: 0.22em;
   color: var(--ink-soft);
 }
 .mc-head h2 {
   margin: 0 0 4px;
-  font-family: 'Playfair Display', serif;
-  font-weight: 700;
+  font-family: 'Limelight', 'Playfair Display', serif; /* the menu titles */
+  font-weight: 400; /* Limelight has one weight */
   font-size: 8cqw;
+  letter-spacing: 0.01em;
   line-height: 1.15;
   color: var(--accent);
 }
@@ -109,17 +114,12 @@
   padding: 0 6px 0 0;
   flex: 1;
   min-height: 0;
-  overflow: hidden;
-  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 26px), transparent);
-  mask-image: linear-gradient(to bottom, #000 calc(100% - 26px), transparent);
+  overflow: hidden; /* a card never scrolls: long sections continue on the next card */
+  display: flex;
+  flex-direction: column;
 }
-.mc-card.active .mc-list {
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(138, 43, 28, 0.5) transparent;
-}
-.mc-list li { padding: 0.9cqw 0; }
+/* the dishes share the page's height, so the list fills the card; the cap keeps a short page from stretching too far */
+.mc-list li { padding: 1.7cqw 0; flex: 1 1 auto; max-height: 17cqw; display: flex; flex-direction: column; justify-content: center; }
 .mc-row { display: flex; align-items: baseline; gap: 2.2cqw; }
 .mc-name { font-size: 5cqw; font-weight: 600; line-height: 1.25; }
 .mc-leader {
@@ -138,7 +138,7 @@
 .mc-rupee { font-family: system-ui, 'Segoe UI', sans-serif; font-size: 0.82em; margin-right: 0.15em; color: var(--ink-soft); }
 .mc-desc { margin: 0 0 0 6.2cqw; font-style: italic; font-size: 3.9cqw; line-height: 1.2; color: var(--ink-soft); }
 .mc-list li.sold-out .mc-name { text-decoration: line-through; opacity: 0.55; }
-.mc-list li.sold-out .mc-price { font-style: italic; font-size: 3.8cqw; color: var(--accent); }
+.mc-list li.sold-out .mc-price { font-style: italic; font-size: 3.8cqw; color: #8a2b1c; }
 
 /* Indian veg / non-veg / egg marks */
 .mc-mark {
@@ -194,6 +194,27 @@
 .mc-dock button:focus-visible { outline: 2px solid #f7e3a1; outline-offset: 2px; }
 .mc-dock button:disabled { opacity: 0.45; cursor: default; }
 
+/* the menu bar and, on a wide screen, the Talk to Greeny button beside it (under it on a narrow one) */
+.mc-bar-row { display: flex; align-items: center; justify-content: center; gap: 12px; }
+@media (max-width: 720px) { .mc-bar-row { flex-direction: column; gap: 10px; } }
+/* wide screens: the menu bar and the Talk to Greeny button, stacked on the right of the carousel */
+@media (min-width: 721px) {
+  /* lined up with the cards: the stack starts where the cards start and is as tall as they are */
+  .mc-bar-row { position: absolute; right: 28px; top: calc(50% - var(--card-h, 330px) / 2 - 22px); flex-direction: column; align-items: stretch; gap: 12px; width: 340px; }
+  .mc-bar-row .mc-talk { justify-content: center; }
+  /* stacked: the section turner on top, Close under it, then Talk to Greeny */
+  .mc-bar-row .mc-controls { height: auto; flex-direction: column; align-items: stretch; gap: 8px; padding: 10px; border-radius: 16px; }
+  /* no pill behind the stack: the arrows, title and Close stand on their own */
+  .menu-carousel .mc-bar-row .mc-controls,
+  :root[data-theme='light'] .menu-carousel .mc-bar-row .mc-controls { background: none; border: none; box-shadow: none; padding: 0; backdrop-filter: none; }
+  .mc-bar-row .mc-controls .mc-divider { display: none; }
+  .mc-bar-row .mc-controls { height: var(--card-h, 330px); justify-content: space-between; align-items: center; gap: 0; }
+  .mc-bar-row .mc-controls .mc-turn { flex: 1; align-self: stretch; flex-direction: column; align-items: center; justify-content: space-evenly; gap: 0; }
+  .mc-bar-row .mc-controls .mc-turn .mc-arrow { transform: rotate(90deg); } /* ‹ becomes ▲ (up) and › becomes ▼ (down) */
+  .mc-bar-row .mc-controls .mc-turn .mc-label { text-align: center; padding: 2px 0; }
+  .mc-bar-row .mc-controls .mc-pill { justify-content: center; width: 100%; }
+}
+
 /* the menu bar: turn sections on the left, talk and close on the right, all one height */
 .mc-controls {
   height: 54px;
@@ -202,7 +223,7 @@
   align-items: center;
   gap: 8px;
   padding: 6px;
-  border-radius: 999px;
+  border-radius: 16px;
   background: rgba(20, 12, 7, 0.8);
   border: 1px solid rgba(201, 151, 59, 0.35);
 }
@@ -220,7 +241,7 @@
 }
 .mc-label-count { font-family: system-ui, 'Segoe UI', sans-serif; font-size: 10.5px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: rgba(236, 217, 173, 0.6); }
 .mc-divider { width: 1px; height: 26px; background: rgba(201, 151, 59, 0.3); }
-.mc-pill { display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 18px; border-radius: 999px; font-size: 14px; font-weight: 600; white-space: nowrap; }
+.mc-pill { display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 18px; border-radius: 12px; font-size: 14px; font-weight: 600; white-space: nowrap; }
 /* "Talk to Greeny" sits on its own under the bar */
 .mc-dock .mc-talk { height: 44px; padding: 0 24px; background: var(--mc-blue); border-color: var(--mc-blue); color: #fff; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35); }
 .mc-dock .mc-talk:hover { background: var(--mc-blue-hover); border-color: var(--mc-blue-hover); }
@@ -269,7 +290,7 @@
   gap: 6px;
   height: 38px;
   padding: 0 4px 0 12px;
-  border-radius: 999px;
+  border-radius: 10px;
   background: rgba(246, 237, 217, 0.08);
   font-size: 13.5px;
   animation: mc-chip-in 180ms ease-out both;
@@ -334,7 +355,7 @@
 }
 .mc-request strong { font-size: 14px; color: #f6e7bf; }
 .mc-request-quick { display: flex; flex-wrap: wrap; gap: 6px; }
-.mc-request-quick button { height: 32px; padding: 0 12px; border-radius: 999px; font-size: 13px; border-color: rgba(201, 151, 59, 0.35); }
+.mc-request-quick button { height: 32px; padding: 0 12px; border-radius: 10px; font-size: 13px; border-color: rgba(201, 151, 59, 0.35); }
 .mc-request-quick button.on { background: var(--mc-blue); border-color: var(--mc-blue); color: #fff; font-weight: 600; }
 .mc-request form { display: flex; gap: 6px; align-items: center; }
 .mc-request input {
@@ -350,7 +371,7 @@
   font-size: 14px;
 }
 .mc-request input:focus { outline: 2px solid #c9973b; outline-offset: 0; }
-.mc-request form button { height: 36px; padding: 0 14px; border-radius: 999px; font-size: 13.5px; font-weight: 600; }
+.mc-request form button { height: 36px; padding: 0 14px; border-radius: 10px; font-size: 13.5px; font-weight: 600; }
 .mc-dock .mc-request-done { background: var(--mc-blue); border-color: var(--mc-blue); color: #fff; }
 .mc-request-cancel { width: 36px; padding: 0 !important; border-color: transparent !important; }
 .mc-stepper { display: inline-flex; align-items: center; gap: 2px; font-variant-numeric: tabular-nums; }
@@ -360,7 +381,7 @@
 .mc-strip-sum { display: flex; flex-direction: column; align-items: flex-end; line-height: 1.15; margin-right: 2px; }
 .mc-strip-sum strong { font-size: 16px; color: #f6e7bf; font-variant-numeric: tabular-nums; }
 .mc-strip-sum small { font-size: 11px; color: rgba(236, 217, 173, 0.6); }
-.mc-strip-actions button { height: 40px; padding: 0 16px; border-radius: 999px; font-size: 14px; font-weight: 600; }
+.mc-strip-actions button { height: 40px; padding: 0 16px; border-radius: 12px; font-size: 14px; font-weight: 600; }
 .mc-strip-clear { border-color: transparent !important; color: rgba(236, 217, 173, 0.75) !important; padding: 0 10px !important; }
 .mc-strip-clear:hover:not(:disabled) { background: rgba(246, 237, 217, 0.1) !important; color: #ecd9ad !important; }
 .mc-dock .mc-strip-go { background: var(--mc-blue); border-color: var(--mc-blue); color: #fff; }
@@ -441,7 +462,7 @@
   animation: mc-zoom-in 260ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 .mc-card-zoom .mc-inner { padding: 26px 28px 18px; }
-.mc-card-zoom .mc-list { overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+.mc-card-zoom .mc-list { overflow: hidden; }
 .mc-zoom-close {
   position: absolute;
   top: 10px;
@@ -542,16 +563,16 @@
 
 /* ---- light theme: the same menu on a warm, light parchment room instead of dark wood ---- */
 :root[data-theme='light'] .menu-carousel {
-  background: radial-gradient(ellipse at 50% 40%, rgba(253, 248, 238, 0.95), rgba(236, 223, 198, 0.97) 75%);
+  background: #fff;
 }
-:root[data-theme='light'] .mc-card { box-shadow: 0 0 0 1px rgba(138, 98, 32, 0.55), 0 0 0 5px var(--leather), 0 0 0 6px rgba(201, 151, 59, 0.7), 0 22px 34px rgba(90, 60, 20, 0.28); }
+:root[data-theme='light'] .mc-card { box-shadow: 0 0 0 1px rgba(201, 162, 74, 0.9), 0 0 0 6px var(--leather), 0 0 0 7px rgba(201, 162, 74, 0.75), 0 22px 34px rgba(0, 0, 0, 0.3); }
 :root[data-theme='light'] .mc-floor { background: radial-gradient(ellipse at center, rgba(90, 60, 20, 0.22), transparent 70%); }
 :root[data-theme='light'] .mc-dock { color: #3a2616; }
 :root[data-theme='light'] .mc-dock button { border-color: rgba(138, 98, 32, 0.4); }
-:root[data-theme='light'] .mc-dock button:focus-visible { outline-color: #8a2b1c; }
+:root[data-theme='light'] .mc-dock button:focus-visible { outline-color: #1d4ed8; }
 :root[data-theme='light'] .mc-controls,
-:root[data-theme='light'] .mc-strip { background: rgba(255, 251, 242, 0.92); border-color: rgba(138, 98, 32, 0.35); box-shadow: 0 4px 14px rgba(90, 60, 20, 0.12); }
-:root[data-theme='light'] .mc-strip.empty { background: rgba(255, 251, 242, 0.6); box-shadow: none; }
+:root[data-theme='light'] .mc-strip { background: #fff; border-color: rgba(138, 98, 32, 0.35); box-shadow: 0 4px 14px rgba(90, 60, 20, 0.12); }
+:root[data-theme='light'] .mc-strip.empty { background: #fff; box-shadow: none; }
 :root[data-theme='light'] .mc-strip-empty,
 :root[data-theme='light'] .mc-label-count,
 :root[data-theme='light'] .mc-strip-sum small { color: rgba(58, 38, 22, 0.6); }
@@ -563,7 +584,7 @@
 :root[data-theme='light'] .mc-strip-name:hover:not(:disabled) small { color: rgba(58, 38, 22, 0.85); }
 :root[data-theme='light'] .mc-strip-name.noted small { color: #8a5a12; }
 :root[data-theme='light'] .mc-strip-note .mc-strip-name span { color: rgba(58, 38, 22, 0.85); }
-:root[data-theme='light'] .mc-strip-name:focus-visible { outline-color: #8a2b1c; }
+:root[data-theme='light'] .mc-strip-name:focus-visible { outline-color: #1d4ed8; }
 :root[data-theme='light'] .mc-strip-actions { border-left-color: rgba(138, 98, 32, 0.25); }
 :root[data-theme='light'] .mc-strip-sum strong { color: #2b1d14; }
 :root[data-theme='light'] .mc-strip-clear { color: rgba(58, 38, 22, 0.75) !important; }
@@ -572,8 +593,8 @@
 :root[data-theme='light'] .mc-request { background: rgba(255, 252, 245, 0.98); border-color: rgba(138, 98, 32, 0.4); box-shadow: 0 10px 30px rgba(90, 60, 20, 0.22); color: #3a2616; }
 :root[data-theme='light'] .mc-request strong { color: #2b1d14; }
 :root[data-theme='light'] .mc-request input { background: #fff; border-color: rgba(138, 98, 32, 0.4); }
-:root[data-theme='light'] .mc-request input:focus { outline-color: #8a2b1c; }
-:root[data-theme='light'] .mc-zoom { background: rgba(120, 95, 60, 0.3); }
+:root[data-theme='light'] .mc-request input:focus { outline-color: #1d4ed8; }
+:root[data-theme='light'] .mc-zoom { background: rgba(40, 40, 45, 0.28); }
 :root[data-theme='light'] .mc-strip-items { scrollbar-color: rgba(138, 98, 32, 0.6) transparent; }
 :root[data-theme='light'] .mc-strip-items::-webkit-scrollbar-thumb { background: rgba(138, 98, 32, 0.6); }
 :root[data-theme='light'] .menu-carousel.with-panel .mc-strip { color: #3a2616; }
@@ -622,5 +643,302 @@
 
 /* while a card is enlarged, "Your order" stays in front of its blurred backdrop, sharp and usable,
    and the big card centres in the space beside it */
-.mc-strip.above-zoom { z-index: 7; }
+.mc-strip.above-zoom,
+.menu-carousel.with-panel .mc-strip.above-zoom { z-index: 7; }
+.menu-carousel.with-panel .mc-strip { box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35); }
+.menu-carousel.with-panel .mc-strip-title { cursor: grab; touch-action: none; user-select: none; }
+.menu-carousel.with-panel .mc-strip-title:active { cursor: grabbing; }
 .menu-carousel.with-panel:not(.with-order) .mc-zoom { padding-left: var(--order-room, 0px); box-sizing: border-box; }
+
+/* ---- the special-request editor: a wider card with a bigger text field on its own row ---- */
+.menu-carousel.with-panel .mc-request { width: min(500px, calc(100vw - var(--panel-w, 300px) - 48px)); min-width: 320px; padding: 16px 18px; gap: 12px; }
+.mc-request strong { font-size: 16px; }
+.mc-request-quick button { height: 36px; padding: 0 14px; font-size: 14px; }
+.mc-request form { flex-wrap: wrap; gap: 8px; }
+.mc-request input { flex: 1 1 100%; height: 46px; padding: 0 14px; font-size: 16px; }
+.mc-request form button { height: 40px; padding: 0 18px; font-size: 14.5px; }
+.mc-request form .mc-request-done { margin-left: auto; }
+
+/* ---- the order cards (sent to the kitchen, your tab, pay, e-receipt): the menu card's colours ---- */
+.popups .note.order-note,
+.studio-order .note.order-note {
+  background: #fff;
+  color: #2b1d14;
+  border: 1px solid rgba(138, 98, 32, 0.4);
+  box-shadow: 0 24px 60px rgba(60, 34, 18, 0.45), inset 0 0 0 1px rgba(255, 255, 255, 0.5);
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-size: 16px;
+}
+.popups .note.order-note strong,
+.studio-order .note.order-note strong {
+  font: 700 22px/1.2 'Playfair Display', Georgia, serif;
+  color: #1d4ed8;
+}
+.popups .note.order-note p,
+.studio-order .note.order-note p { color: #6b5443; }
+.popups .note.order-note input,
+.studio-order .note.order-note input {
+  background: #fff;
+  color: #2b1d14;
+  border: 1px solid rgba(138, 98, 32, 0.45);
+  font-family: system-ui, 'Segoe UI', sans-serif;
+}
+.popups .note.order-note input:focus,
+.studio-order .note.order-note input:focus { outline: 2px solid #1d4ed8; outline-offset: 0; }
+.popups .note.order-note .btn,
+.studio-order .note.order-note .btn {
+  background: transparent;
+  color: #3a2616;
+  border-color: rgba(138, 98, 32, 0.5);
+  font-family: system-ui, 'Segoe UI', sans-serif;
+  font-weight: 600;
+}
+.popups .note.order-note .btn:hover:not(:disabled),
+.studio-order .note.order-note .btn:hover:not(:disabled) { background: rgba(138, 98, 32, 0.12); }
+.popups .note.order-note .btn.primary,
+.studio-order .note.order-note .btn.primary { background: #2563eb; border-color: #2563eb; color: #fff; } /* the same blue as Review order */
+.popups .note.order-note .btn.primary:hover:not(:disabled),
+.studio-order .note.order-note .btn.primary:hover:not(:disabled) { background: #1d4ed8; border-color: #1d4ed8; }
+
+/* ---- the "Your order" card: the same design as the confirm card (white, gold-brown hairline, soft shadow,
+   Playfair title in blue, Cormorant text) ---- */
+.mc-strip,
+.menu-carousel.with-panel .mc-strip,
+:root[data-theme='light'] .mc-strip,
+:root[data-theme='light'] .menu-carousel.with-panel .mc-strip {
+  background: #fff;
+  color: #2b1d14;
+  border: 1px solid rgba(138, 98, 32, 0.4);
+  box-shadow: 0 24px 60px rgba(60, 34, 18, 0.35), inset 0 0 0 1px rgba(255, 255, 255, 0.5);
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-size: 16px;
+}
+.mc-strip.empty,
+:root[data-theme='light'] .mc-strip.empty { border-style: solid; background: #fff; box-shadow: 0 24px 60px rgba(60, 34, 18, 0.35), inset 0 0 0 1px rgba(255, 255, 255, 0.5); }
+.menu-carousel.with-panel .mc-strip-title,
+:root[data-theme='light'] .menu-carousel.with-panel .mc-strip-title {
+  font: 700 22px/1.2 'Playfair Display', Georgia, serif;
+  letter-spacing: 0;
+  color: #1d4ed8;
+  border-bottom: 1px solid rgba(138, 98, 32, 0.25);
+}
+.menu-carousel.with-panel .mc-strip-empty { color: #6b5443; font-size: 17px; }
+/* the dish names and their "+ request" lines in the order: Fira Sans */
+.menu-carousel.with-panel .mc-strip-items .mc-strip-name span { font: 500 15px/1.3 'Fira Sans', system-ui, sans-serif; color: #2b1d14; }
+.menu-carousel.with-panel .mc-strip-items .mc-strip-name small { font: 400 12px/1.3 'Fira Sans', system-ui, sans-serif; color: #6b5443; }
+.menu-carousel.with-panel .mc-strip-sum strong { font: 700 22px/1.1 'Playfair Display', Georgia, serif; font-variant-numeric: lining-nums tabular-nums; color: #2b1d14; }
+.menu-carousel.with-panel .mc-strip-sum small { font: 500 13px system-ui, 'Segoe UI', sans-serif; color: #6b5443; }
+.mc-strip button,
+.mc-strip input { font-family: system-ui, 'Segoe UI', sans-serif; } /* the buttons, as on the confirm card */
+
+/* ---- the ring fades out before the order panel and the menu bar, so side cards never run into them ---- */
+.menu-carousel.with-panel .mc-stage {
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 9%, #000 91%, transparent);
+  mask-image: linear-gradient(to right, transparent, #000 9%, #000 91%, transparent);
+}
+
+/* ---- "Kitchen note": a round button; its info card shows on hover or focus ---- */
+.mc-strip-note { position: relative; }
+.menu-carousel .mc-dock .mc-strip-note .mc-strip-name.mc-note-btn,
+.menu-carousel.with-panel .mc-dock .mc-strip-note .mc-strip-name.mc-note-btn {
+  position: relative;
+  width: 36px;
+  min-width: 36px;
+  max-width: 36px;
+  height: 36px;
+  padding: 0;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  overflow: visible;
+  border: 1px solid rgba(138, 98, 32, 0.5);
+  background: #fff;
+  color: #3a2616;
+}
+.menu-carousel .mc-dock .mc-strip-note .mc-strip-name.mc-note-btn:hover:not(:disabled),
+.menu-carousel .mc-dock .mc-strip-note .mc-strip-name.mc-note-btn:focus-visible { background: var(--mc-blue); border-color: var(--mc-blue); color: #fff; }
+.menu-carousel .mc-dock .mc-strip-note .mc-strip-name.mc-note-btn.noted { background: var(--mc-blue); border-color: var(--mc-blue); color: #fff; }
+.menu-carousel.with-panel .mc-strip-note { position: absolute; top: 14px; right: 14px; padding: 0; border: none; width: auto; }
+.mc-note-tip {
+  position: absolute;
+  bottom: calc(100% + 10px);
+  right: 0;
+  z-index: 6;
+  display: grid;
+  gap: 4px;
+  width: 230px;
+  padding: 12px 14px;
+  text-align: left;
+  white-space: normal;
+  border-radius: 12px;
+  background: #fff;
+  color: #2b1d14;
+  border: 1px solid rgba(138, 98, 32, 0.4);
+  box-shadow: 0 16px 40px rgba(60, 34, 18, 0.3);
+  opacity: 0;
+  transform: translateY(4px);
+  pointer-events: none;
+  transition: opacity 0.15s, transform 0.15s;
+}
+.menu-carousel.with-panel .mc-note-tip { bottom: auto; top: calc(100% + 10px); }
+.mc-note-tip strong { font: 700 16px/1.2 'Playfair Display', Georgia, serif; color: #1d4ed8; }
+.mc-note-tip em { font: italic 500 15px/1.3 'Cormorant Garamond', Georgia, serif; color: #6b5443; }
+.mc-note-btn:hover .mc-note-tip,
+.mc-note-btn:focus-visible .mc-note-tip { opacity: 1; transform: none; }
+
+/* the info card must wrap its text (the strip's name buttons otherwise force one clipped line) */
+.mc-strip-note .mc-strip-name .mc-note-tip { overflow: visible; text-overflow: clip; white-space: normal; font-size: inherit; font-weight: inherit; color: #2b1d14; }
+
+/* ---- the dishes on the menu cards: Fira Sans for the names, prices and page number (titles stay Limelight) ---- */
+.mc-name { font-family: 'Fira Sans', system-ui, sans-serif; font-size: 4.5cqw; font-weight: 500; line-height: 1.25; }
+.mc-price { font-family: 'Fira Sans', system-ui, sans-serif; font-size: 4.3cqw; font-weight: 500; font-variant-numeric: lining-nums tabular-nums; }
+.mc-list li.sold-out .mc-price { font-family: 'Fira Sans', system-ui, sans-serif; font-size: 3.6cqw; }
+.mc-desc { font-family: 'Fira Sans', system-ui, sans-serif; font-style: normal; font-size: 3.4cqw; }
+.mc-folio { font-family: 'Fira Sans', system-ui, sans-serif; font-weight: 500; letter-spacing: 0.18em; }
+
+/* Close: a round ✕ button, like the arrows */
+.menu-carousel .mc-pill.mc-close-x,
+.menu-carousel .mc-bar-row .mc-controls .mc-pill.mc-close-x { width: 40px; min-width: 40px; height: 40px; padding: 0; border-radius: 50%; justify-content: center; font-size: 17px; line-height: 1; align-self: center; }
+
+/* ---- the confirm card's text (items, subtotal, tax, totals, hints, buttons): Fira Sans; the title stays Playfair ---- */
+.popups .note.order-note,
+.studio-order .note.order-note,
+.popups .note.order-note .btn,
+.studio-order .note.order-note .btn {
+  font-family: 'Fira Sans', system-ui, sans-serif;
+  font-variant-numeric: lining-nums tabular-nums;
+}
+.popups .note.order-note,
+.studio-order .note.order-note { font-size: 15px; }
+.popups .note.order-note p,
+.studio-order .note.order-note p { font-size: 14px; line-height: 1.4; }
+
+/* the payment buttons (Cash, UPI, Card): big enough to tap with a finger */
+.popups .note.order-note .btn.pay-btn,
+.studio-order .note.order-note .btn.pay-btn { flex: 1; min-width: 72px; height: 46px; padding: 0 16px; font-size: 16px; font-weight: 600; border-radius: 4px; }
+.popups .note.order-note:has(.pay-btn) .note-actions,
+.studio-order .note.order-note:has(.pay-btn) .note-actions { gap: 12px; width: 100%; }
+
+/* the payment icons: a name appears above one on hover or focus */
+.popups .note.order-note .btn.pay-btn,
+.studio-order .note.order-note .btn.pay-btn { position: relative; display: grid; place-items: center; padding: 0; overflow: visible; }
+.pay-btn .pay-tip {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  translate: -50% 4px;
+  padding: 5px 10px;
+  border-radius: 4px;
+  background: #1f1a16;
+  color: #fff;
+  font: 600 13px/1.2 'Fira Sans', system-ui, sans-serif;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s, translate 0.15s;
+}
+.pay-btn:hover .pay-tip,
+.pay-btn:focus-visible .pay-tip { opacity: 1; translate: -50% 0; }
+
+/* the payment buttons: a colour each, and raised (a lighter top, a darker edge, a shadow) that presses down when tapped */
+.popups .note.order-note .btn.pay-btn,
+.studio-order .note.order-note .btn.pay-btn {
+  --c1: #3b82f6; --c2: #2563eb; --edge: #1e3a8a;
+  margin-bottom: 6px;
+  border: 0;
+  color: #fff;
+  background: linear-gradient(180deg, var(--c1), var(--c2));
+  box-shadow: 0 5px 0 var(--edge), 0 12px 18px rgba(30, 20, 10, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  transition: transform 0.12s, box-shadow 0.12s, filter 0.12s;
+}
+.popups .note.order-note .btn.pay-btn[data-method='cash'],
+.studio-order .note.order-note .btn.pay-btn[data-method='cash'] { --c1: #34d399; --c2: #16a34a; --edge: #14532d; }
+.popups .note.order-note .btn.pay-btn[data-method='upi'],
+.studio-order .note.order-note .btn.pay-btn[data-method='upi'] { --c1: #a78bfa; --c2: #7c3aed; --edge: #4c1d95; }
+.popups .note.order-note .btn.pay-btn[data-method='card'],
+.studio-order .note.order-note .btn.pay-btn[data-method='card'] { --c1: #60a5fa; --c2: #2563eb; --edge: #1e3a8a; }
+.popups .note.order-note .btn.pay-btn:hover:not(:disabled),
+.studio-order .note.order-note .btn.pay-btn:hover:not(:disabled) {
+  background: linear-gradient(180deg, var(--c1), var(--c2));
+  transform: translateY(-2px);
+  filter: brightness(1.06);
+  box-shadow: 0 7px 0 var(--edge), 0 16px 22px rgba(30, 20, 10, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.45);
+}
+.popups .note.order-note .btn.pay-btn:active:not(:disabled),
+.studio-order .note.order-note .btn.pay-btn:active:not(:disabled) {
+  transform: translateY(4px);
+  box-shadow: 0 1px 0 var(--edge), 0 3px 6px rgba(30, 20, 10, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+
+/* ---- the paid / e-receipt card: fills the whole card, in Raleway ---- */
+.popups .note.order-note.receipt-card,
+.studio-order .note.order-note.receipt-card,
+.popups .note.order-note.receipt-card .btn,
+.studio-order .note.order-note.receipt-card .btn,
+.receipt-card input { font-family: 'Raleway', system-ui, sans-serif; font-variant-numeric: lining-nums; }
+.receipt-card .rc-total { margin: 4px 0 0; font-size: 15px; font-weight: 600; color: #6b5443; }
+.receipt-card .rc-form { flex: 1; display: flex; flex-direction: column; gap: 12px; margin-top: 14px; text-align: left; min-height: 0; }
+.receipt-card .rc-form label { font-size: 14px; font-weight: 700; color: #2b1d14; }
+.receipt-card .rc-form input { width: 100%; box-sizing: border-box; height: 48px; padding: 0 14px; border-radius: 6px; font-size: 16px; background: #fff; border: 1px solid rgba(138, 98, 32, 0.55); }
+.receipt-card .rc-form > .btn { height: 46px; width: 100%; border-radius: 6px; font-size: 15px; }
+.receipt-card .rc-error { color: #c8392b; font-size: 13px; }
+.receipt-card .rc-done { font-size: 15px; font-weight: 600; color: #15803d; }
+.receipt-card .rc-actions { margin-top: auto; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.receipt-card .rc-actions .btn { height: 46px; border-radius: 6px; font-size: 15px; }
+.receipt-card .rc-actions .rc-next { grid-column: 1 / -1; height: 52px; font-size: 16px; }
+
+/* the order panel's footer buttons (Clear, Review order): nearly square corners */
+.menu-carousel .mc-strip-actions button,
+.menu-carousel .mc-strip-actions .mc-strip-go { border-radius: 4px; }
+
+/* the buttons on the order cards (Go back / Confirm / Cancel, See tab / Dismiss, Close tab & pay ...): bigger, sharing the row evenly */
+.popups .note.order-note:not(.receipt-card) .note-actions,
+.studio-order .note.order-note:not(.receipt-card) .note-actions { gap: 10px; width: 100%; }
+.popups .note.order-note:not(.receipt-card) .note-actions .btn:not(.pay-btn),
+.studio-order .note.order-note:not(.receipt-card) .note-actions .btn:not(.pay-btn) {
+  flex: 1 1 0;
+  min-width: 0;
+  height: 48px;
+  padding: 0 10px;
+  border-radius: 4px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+/* ---- UPI "scan to pay": a pop-up over the whole screen ---- */
+.upi-pop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(20, 14, 8, 0.55);
+  backdrop-filter: blur(4px);
+  animation: upi-fade 200ms ease-out both;
+}
+@keyframes upi-fade { from { opacity: 0; } }
+.upi-card {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  width: min(380px, 100%);
+  padding: 26px 28px 24px;
+  text-align: center;
+  background: #fff;
+  color: #2b1d14;
+  border: 1px solid rgba(138, 98, 32, 0.4);
+  border-radius: 12px;
+  box-shadow: 0 30px 80px rgba(20, 14, 8, 0.5);
+  font-family: 'Raleway', system-ui, sans-serif;
+}
+.upi-card strong { font: 700 24px/1.2 'Playfair Display', Georgia, serif; color: #1d4ed8; }
+.upi-amount { font: 700 34px/1.1 'Playfair Display', Georgia, serif; font-variant-numeric: lining-nums; }
+.upi-qr { width: min(280px, 70vw); height: auto; border: 1px solid rgba(138, 98, 32, 0.3); border-radius: 4px; }
+.upi-msg { margin: 0; font-size: 14px; line-height: 1.45; color: #6b5443; }
+.upi-bad { color: #c8392b; }
+.upi-actions { display: flex; gap: 10px; width: 100%; margin-top: 6px; }
+.upi-actions .btn { flex: 1 1 0; height: 50px; border-radius: 4px; font: 600 16px 'Raleway', system-ui, sans-serif; background: transparent; color: #3a2616; border: 1px solid rgba(138, 98, 32, 0.5); }
+.upi-actions .btn:hover:not(:disabled) { background: rgba(138, 98, 32, 0.12); }
+.upi-actions .btn.primary { background: #2563eb; border-color: #2563eb; color: #fff; }
+.upi-actions .btn.primary:hover:not(:disabled) { background: #1d4ed8; }

@@ -97,15 +97,16 @@ export function parseOrder(b = {}) {
 // ---- the endpoints ----
 export function inventoryApi(store, config, tabs = null) {
   // portions left, less what is already on open tabs (eaten, but not out of stock until the tab is paid)
-  const orderable = () => {
+  const withHeld = (dishes) => {
     const held = tabs ? tabs.reserved() : new Map()
-    return store.listDishes().filter((d) => d.available).map((d) =>
-      d.portions === null || !held.has(d.id) ? d : { ...d, portions: Math.max(0, d.portions - held.get(d.id)) })
+    return dishes.map((d) => (d.portions === null || !held.has(d.id) ? d : { ...d, portions: Math.max(0, d.portions - held.get(d.id)) }))
   }
+  const orderable = () => withHeld(store.listDishes().filter((d) => d.available))
   const soldOut = (d) => d.portions === 0 && !config.billing.allowNegativeStock
   const publicDish = (d) => ({
     id: d.id, name: d.name, section: d.section, diet: d.diet, price: d.price, description: d.description,
     portions_left: d.portions, sold_out: soldOut(d),
+    ...(d.available === false && { sold_out: true, switched_off: true }),
   })
   const ok = (body, status = 200) => ({ status, body })
 
@@ -179,16 +180,24 @@ export function inventoryApi(store, config, tabs = null) {
 
 
   return {
+    // the UPI ID to collect payments on (for the tablet's "scan to pay" QR)
+    upi: () => ok({ ...store.getUpi(), restaurant: config.restaurant.name }),
+
     ping: () => ok({ ok: true, restaurant: config.restaurant.name, currency: 'INR', gst_rate: config.billing.taxRate }),
 
     menu(query = {}) {
       const s = tokens(query.search)
       const section = norm(query.section)
-      let dishes = orderable()
+      // the menu card also shows dishes switched off at the till ("86'd") as sold out; ordering never offers them
+      let dishes = query.all === '1' ? withHeld(store.listDishes()) : orderable()
       if (query.diet) dishes = dishes.filter((d) => d.diet === query.diet)
       if (section) dishes = dishes.filter((d) => norm(d.section).includes(section))
       if (s.length) dishes = dishes.filter((d) => s.every((t) => tokens(d.name).some((n) => n.startsWith(t) || t.startsWith(n))))
-      return ok({ currency: 'INR', gst_rate: config.billing.taxRate, dishes: dishes.map(publicDish) })
+      return ok({ currency: 'INR', gst_rate: config.billing.taxRate, dishes: dishes.map((d) => {
+        const p = publicDish(d)
+        // the tablet's card treats a dish with no stock left as sold out even where the till allows negative stock
+        return query.all === '1' && d.portions === 0 ? { ...p, sold_out: true } : p
+      }) })
     },
 
     // dry_run: a quote (matched dishes, GST totals, next bill number); otherwise the bill is created
@@ -261,6 +270,15 @@ export function inventoryApi(store, config, tabs = null) {
     },
 
     // the kitchen feed for tabs: each round as it is ordered, with its table
+    // the Kitchen Display Screen: its tickets, and moving one through its stages ({ id, status: 'new' | 'preparing' | 'ready' | 'served' })
+    kitchenBoard: () => ok(needTabs().board()),
+    kitchenStatus(body = {}) {
+      const id = Number(body.id)
+      if (!Number.isInteger(id) || id < 1) bad('id must be a ticket number')
+      if (!['new', 'preparing', 'ready', 'served'].includes(body.status)) bad("status must be 'new', 'preparing', 'ready' or 'served'")
+      needTabs().setKitchenStatus(id, body.status)
+      return ok({ ok: true })
+    },
     kitchen: (query = {}) => ok(needTabs().roundsSince(Math.max(0, Number(query.since_id) || 0))),
 
     // e-receipt for a placed bill, after the guest confirmed the address

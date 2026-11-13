@@ -224,5 +224,17 @@ export function openStore(config) {
     }
   }
 
-  return { listDishes, createBill, getBill, getBillByNo, peekNextBillNo, markEmailed, ordersSince, close: () => db.close() }
+  // The UPI collection settings the till stores (Stock Management > Settings): the payee's ID and name.
+  function getUpi() {
+    try {
+      const row = get("SELECT value FROM app_settings WHERE key = 'upi'")
+      const v = row ? JSON.parse(row.value) : {}
+      const id = String(v.upi_id || '').trim()
+      return { enabled: !!v.enabled && !!id, upi_id: id, payee_name: String(v.payee_name || '').trim() }
+    } catch {
+      return { enabled: false, upi_id: '', payee_name: '' } // an older database without the settings table
+    }
+  }
+
+  return { getUpi, listDishes, createBill, getBill, getBillByNo, peekNextBillNo, markEmailed, ordersSince, close: () => db.close() }
 }

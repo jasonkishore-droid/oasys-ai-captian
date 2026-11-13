@@ -199,6 +199,8 @@ export default function StudioAvatar({ look, mood, mouthMood, contact, expressio
   return (
     <div className={`studio-head${variant === 'oasys' ? ' oasys-head' : ''}`}>
       <div className="studio-shell">
+        {/* the green line that draws itself round the bot while a conversation connects and when it is on */}
+        <span className="studio-ring" aria-hidden="true" />
         <div className="studio-screen">
           <svg
             ref={svgRef}

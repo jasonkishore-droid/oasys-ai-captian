@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { api } from '../api';
-import { useApp, useLoad, useToast, can, DietMark, Modal, Alert, Loading, Empty, Field, Segmented, Stat } from '../ui.jsx';
+import { useApp, useLoad, useToast, can, DietMark, Modal, Alert, Loading, Empty, Field, Segmented, Stat, StatusBadge } from '../ui.jsx';
 import { money, pct, qty, round2, downloadCsv } from '../format';
 
 const SORTS = [['menu', 'Menu order'], ['cost', 'Food cost % ↓'], ['margin', 'Margin ↓'], ['portions', 'Portions ↑']];
@@ -16,6 +16,7 @@ export default function Menu() {
   const [sort, setSort] = useState('menu');
   const [onlyOff, setOnlyOff] = useState(false);
   const [editing, setEditing] = useState(null);
+  const [restocking, setRestocking] = useState(false);
   const [dishes, sections] = q.data || [[], []];
 
   const replace = (d) => q.setData(([xs, s]) => [xs.map((x) => (x.id === d.id ? { ...x, ...d } : x)), s]);
@@ -72,6 +73,7 @@ export default function Menu() {
         <Segmented value={sort} onChange={setSort} options={SORTS} />
         <span className="spacer" />
         <button className="btn" onClick={exportCsv}>Export CSV</button>
+        {manager && <button className="btn" onClick={() => setRestocking(true)} title="Order everything that is low or out of stock">Restock</button>}
         {manager && <button className="btn primary" onClick={() => setEditing({})}>+ Dish</button>}
       </section>
 
@@ -110,6 +112,10 @@ export default function Menu() {
       </section>
       <p className="muted small">Food cost uses each ingredient's weighted-average purchase cost. "Can make" is how many portions current book stock covers, limited by the scarcest ingredient.</p>
 
+      {restocking && (
+        <RestockModal onClose={() => setRestocking(false)}
+          onDone={(r) => { setRestocking(false); q.reload(); toast(`Restocked ${r.count} item${r.count === 1 ? '' : 's'} · ${money(r.total)}`); }} />
+      )}
       {editing && (
         <DishForm dish={editing} sections={sections} readOnly={!manager} onClose={() => setEditing(null)}
           onSaved={() => { setEditing(null); q.reload(); }} />
@@ -242,6 +248,55 @@ function DishForm({ dish, sections, readOnly, onClose, onSaved }) {
           {!readOnly && <button className="btn primary" disabled={busy}>{busy ? 'Saving…' : 'Save dish'}</button>}
         </div>
       </form>
+    </Modal>
+  );
+}
+
+// Restock: shows what is low or out of stock and what would be ordered, then records the purchase(s).
+function RestockModal({ onClose, onDone }) {
+  const q = useLoad(() => api.restock(true));
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const r = q.data;
+
+  const go = async () => {
+    setBusy(true);
+    setError('');
+    try { onDone(await api.restock(false)); } catch (e) { setError(e.message); setBusy(false); }
+  };
+
+  return (
+    <Modal title="Restock" size="wide" onClose={onClose} busy={busy}
+      actions={<>
+        <button className="btn" onClick={onClose} disabled={busy}>Cancel</button>
+        <button className="btn primary" onClick={go} disabled={busy || !r?.count}>{busy ? 'Restocking…' : r?.count ? `Restock ${r.count} item${r.count === 1 ? '' : 's'} · ${money(r.total)}` : 'Restock'}</button>
+      </>}>
+      {q.error && <Alert>{q.error}</Alert>}
+      {!r && !q.error && <Loading />}
+      {r && !r.count && <Empty>Everything is above its par level. Nothing to restock.</Empty>}
+      {r?.count > 0 && (
+        <>
+          <p className="muted">Orders the usual reorder quantity of every low or out-of-stock ingredient at its average cost, and adds it to stock as goods received (note "Auto restock"). One purchase is recorded per supplier.</p>
+          <div className="table-wrap">
+            <table className="compact">
+              <thead><tr><th>Ingredient</th><th>Status</th><th className="num">On hand</th><th className="num">Par</th><th className="num">Order</th><th className="num">Cost</th></tr></thead>
+              <tbody>
+                {r.items.map((i) => (
+                  <tr key={i.ingredient_id}>
+                    <td><div className="name">{i.name}</div>{i.supplier && <div className="sub">{i.supplier}</div>}</td>
+                    <td><StatusBadge status={i.status} /></td>
+                    <td className="num">{qty(i.on_hand, i.unit)}</td>
+                    <td className="num">{qty(i.par_level, i.unit)}</td>
+                    <td className="num"><strong>{qty(i.quantity, i.unit)}</strong></td>
+                    <td className="num">{money(i.line_total)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+      {error && <Alert>{error}</Alert>}
     </Modal>
   );
 }

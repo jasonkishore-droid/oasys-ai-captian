@@ -65,6 +65,7 @@ export const api = {
   purchases: () => get('/purchases'),
   purchase: (id) => get(`/purchases/${id}`),
   createPurchase: (data) => post('/purchases', data),
+  restock: (dryRun) => post('/purchases/restock', { dry_run: !!dryRun }), // low and out-of-stock items; dry run = preview only
 
   sections: () => get('/sections'),
   dishes: (includeInactive) => get('/dishes', { include_inactive: includeInactive ? 'true' : undefined }),

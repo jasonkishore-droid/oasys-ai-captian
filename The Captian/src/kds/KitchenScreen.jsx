@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Ticket from './Ticket.jsx'
-import { useArrivals, useBoard, useClock, useKdsTheme, useRestaurant, useSound, useWakeLock } from './hooks.js'
+import WaiterCalls from './WaiterCalls.jsx'
+import { useArrivals, useBoard, useClock, useKdsTheme, useRestaurant, useSound, useWaiterCalls, useWakeLock } from './hooks.js'
 import './kds.css'
 
 const TABS = [
@@ -14,6 +15,8 @@ const TABS = [
 export default function KitchenScreen({ onClose }) {
   const { tickets, loaded, online, error, clearError, move } = useBoard()
   const arrived = useArrivals(tickets, loaded)
+  const waiter = useWaiterCalls()
+  const arrivedCalls = useArrivals(waiter.calls, waiter.loaded) // tables that just called
   const sound = useSound()
   const name = useRestaurant()
   const [theme, toggleTheme] = useKdsTheme()
@@ -39,16 +42,19 @@ export default function KitchenScreen({ onClose }) {
   const shown = tab === 'cooking' ? cooking : tab === 'ready' ? ready : tab === 'served' ? served : [...cooking, ...ready, ...served]
   const counts = { cooking: cooking.length, ready: ready.length, served: served.length, all: tickets.length }
   const fresh = useMemo(() => new Set(arrived.map((t) => t.id)), [arrived])
+  const freshCalls = useMemo(() => new Set(arrivedCalls.map((c) => c.id)), [arrivedCalls])
+  const waiting = waiter.calls.filter((c) => c.status === 'open').length // calls nobody has answered yet
 
   useEffect(() => {
-    if (arrived.length && sound.on) sound.beep()
-  }, [arrived]) // eslint-disable-line react-hooks/exhaustive-deps
+    if ((arrived.length || arrivedCalls.length) && sound.on) sound.beep()
+  }, [arrived, arrivedCalls]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
-    document.title = cooking.length ? `(${cooking.length}) Kitchen · ${name}` : `Kitchen · ${name}`
+    const n = cooking.length + waiting
+    document.title = n ? `(${n}) Kitchen · ${name}` : `Kitchen · ${name}`
     return () => {
       if (onClose) document.title = 'The Captain'
     }
-  }, [cooking.length, name])
+  }, [cooking.length, waiting, name])
 
   return (
     <div className={`kds${leaving ? ' leaving' : ''}${onClose ? '' : ' standalone'}`} data-theme={theme} role="dialog" aria-label={`${name} kitchen`}>
@@ -91,19 +97,25 @@ export default function KitchenScreen({ onClose }) {
             {label} <span>({counts[key]})</span>
           </button>
         ))}
+        {/* tables asking for a waiter: red while any call is still unanswered */}
+        <button type="button" role="tab" className={`kds-tab-calls${waiting ? ' alert' : ''}`} aria-selected={tab === 'calls'} onClick={() => setTab('calls')}>
+          Waiter calls <span>({waiter.calls.length})</span>
+        </button>
       </nav>
 
-      {error && (
+      {(error || waiter.error) && (
         <div className="kds-alert" role="alert">
-          <span>{error}</span>
-          <button type="button" className="kds-chip" onClick={clearError}>
+          <span>{error || waiter.error}</span>
+          <button type="button" className="kds-chip" onClick={error ? clearError : waiter.clearError}>
             Dismiss
           </button>
         </div>
       )}
 
       <main className="kds-main" role="tabpanel">
-        {!loaded ? (
+        {tab === 'calls' ? (
+          <WaiterCalls calls={waiter.calls} loaded={waiter.loaded} fresh={freshCalls} onAck={waiter.acknowledge} onDone={waiter.finish} />
+        ) : !loaded ? (
           <p className="kds-empty">Loading tickets…</p>
         ) : shown.length ? (
           <div className="kds-wall">
@@ -118,7 +130,11 @@ export default function KitchenScreen({ onClose }) {
 
       {/* read out by screen readers when a ticket arrives */}
       <p className="kds-sr" aria-live="polite">
-        {arrived.length ? `New ticket: ${arrived.map((t) => (t.table_no ? `table ${t.table_no}` : 'no table')).join(', ')}` : ''}
+        {arrivedCalls.length
+          ? `Table ${arrivedCalls.map((c) => c.table_no).join(', ')} is calling for a waiter`
+          : arrived.length
+            ? `New ticket: ${arrived.map((t) => (t.table_no ? `table ${t.table_no}` : 'no table')).join(', ')}`
+            : ''}
       </p>
     </div>
   )

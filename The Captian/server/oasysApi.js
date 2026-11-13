@@ -106,6 +106,8 @@ export function oasysRoutes(env) {
     return JSON.stringify(dishes.map((d) => [d.id, d.sold_out ? 1 : 0, d.portions_left]))
   })
   const watchKitchen = channel('kitchen', () => JSON.stringify(getApi().kitchenBoard().body.tickets.map((t) => [t.id, t.status])))
+  // the staff screen's waiter calls: an event whenever a call is made, repeated, acknowledged, finished or cancelled
+  const watchWaiter = channel('waiter', () => JSON.stringify(getWaiter().active().body.calls.map((c) => [c.id, c.status, c.repeats])))
 
   const base = (env.INVENTORY_API_URL || 'http://127.0.0.1:4020').replace(/\/+$/, '')
   const key = env.ORDER_API_KEY || ''
@@ -121,6 +123,7 @@ export function oasysRoutes(env) {
     const query = Object.fromEntries(u.searchParams)
     if (req.method === 'GET' && u.pathname === '/api/oasys/menu/stream') return watchMenu(req, res)
     if (req.method === 'GET' && u.pathname === '/api/oasys/kitchen/stream') return watchKitchen(req, res)
+    if (req.method === 'GET' && u.pathname === '/api/oasys/waiter/stream') return watchWaiter(req, res)
     try {
       const w = u.pathname.match(WAITER)
       if (w) {

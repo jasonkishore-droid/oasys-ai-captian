@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
-import { fetchBoard, fetchRestaurant, setTicketStatus, STREAM_URL } from './api.js'
+import { acknowledgeCall, fetchBoard, fetchCalls, fetchRestaurant, finishCall, setTicketStatus, STREAM_URL, WAITER_STREAM_URL } from './api.js'
 
 // ---- one shared clock: every timer on screen ticks from a single interval ----
 const listeners = new Set()
@@ -71,9 +71,11 @@ export function useBoard() {
     try {
       await setTicketStatus(id, status)
       setError('')
+      return true
     } catch (e) {
       if (before) setTickets((cur) => cur.map((t) => (t.id === id ? before : t)))
       setError(`Could not update the ticket: ${e.message}`)
+      return false // so the screen can drop the "status changed" toast
     } finally {
       busy.current.delete(id)
     }
@@ -199,3 +201,80 @@ export function useKdsTheme() {
 
 // the clock in the title bar (shares the one-second ticker)
 export const useClock = () => new Date(useNow())
+
+// ---- waiter calls: every active call, kept live by the server's stream; acknowledge and finish update at once ----
+export function useWaiterCalls() {
+  const [calls, setCalls] = useState([])
+  const [loaded, setLoaded] = useState(false)
+  const [online, setOnline] = useState(false) // the live stream is connected
+  const [error, setError] = useState('')
+  const busy = useRef(new Set())
+
+  const refresh = useCallback(async () => {
+    try {
+      const next = await fetchCalls()
+      setCalls((cur) => next.map((c) => (busy.current.has(c.id) ? cur.find((x) => x.id === c.id) || c : c)))
+      setLoaded(true)
+      setError('')
+    } catch (e) {
+      setError(e.name === 'TimeoutError' ? 'The server is not answering.' : e.message || 'Could not load waiter calls.')
+    }
+  }, [])
+
+  useEffect(() => {
+    refresh()
+    const es = new EventSource(WAITER_STREAM_URL) // reconnects by itself; each (re)connect starts with an event
+    es.addEventListener('waiter', refresh)
+    es.onopen = () => setOnline(true)
+    es.onerror = () => setOnline(false)
+    const poll = setInterval(refresh, 20000) // a safety net if the stream is blocked
+    return () => {
+      es.close()
+      clearInterval(poll)
+    }
+  }, [refresh])
+
+  // 'ack' ("on my way") keeps the call on the screen, marked; 'done' takes it off. Both move at once and move back if refused.
+  const act = useCallback(async (id, kind, by) => {
+    let before = null
+    busy.current.add(id)
+    setCalls((cur) => {
+      before = cur.find((c) => c.id === id) || null
+      return kind === 'done' ? cur.filter((c) => c.id !== id) : cur.map((c) => (c.id === id ? { ...c, status: 'acknowledged', acknowledged_by: by || null, acknowledged_at: new Date().toISOString() } : c))
+    })
+    try {
+      await (kind === 'done' ? finishCall(id) : acknowledgeCall(id, by))
+      setError('')
+    } catch (e) {
+      if (before) setCalls((cur) => (cur.some((c) => c.id === id) ? cur.map((c) => (c.id === id ? before : c)) : [...cur, before].sort((a, b) => a.id - b.id)))
+      setError(`Could not update the call: ${e.message}`)
+    } finally {
+      busy.current.delete(id)
+    }
+  }, [])
+
+  return { calls, loaded, online, error, clearError: () => setError(''), acknowledge: (id, by) => act(id, 'ack', by), finish: (id) => act(id, 'done') }
+}
+
+// ---- the waiter's own name, saved on this device: "Ravi" + a suffix such as "anna" -> "Ravi anna" ----
+const NAME_KEY = 'waiter-name'
+const SUFFIX_KEY = 'waiter-suffix'
+const readSaved = (k) => {
+  try {
+    return localStorage.getItem(k) || ''
+  } catch {
+    return ''
+  }
+}
+export function useWaiterName() {
+  const [name, setNameState] = useState(() => readSaved(NAME_KEY))
+  const [suffix, setSuffixState] = useState(() => readSaved(SUFFIX_KEY))
+  const keep = (key, set) => (v) => {
+    set(v)
+    try {
+      localStorage.setItem(key, v)
+    } catch { /* private window: it just isn't remembered */ }
+  }
+  const full = [name.trim(), suffix.trim()].filter(Boolean).join(' ') // what is sent with "On my way" and what Greeny says
+  return { name, suffix, full, setName: keep(NAME_KEY, setNameState), setSuffix: keep(SUFFIX_KEY, setSuffixState) }
+}

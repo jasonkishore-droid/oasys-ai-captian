@@ -1,15 +1,9 @@
 import { memo } from 'react'
 import { ageSeconds, formatAge, urgency } from './age.js'
 import { useNow } from './hooks.js'
+import StatusMenu from './StatusMenu.jsx'
 
 const DIET_LABEL = { veg: 'Vegetarian', nonveg: 'Non-vegetarian', egg: 'Contains egg' }
-// the stages a ticket goes through, in order
-export const STAGES = [
-  ['new', 'New'],
-  ['preparing', 'Preparing'],
-  ['ready', 'Ready'],
-  ['served', 'Served'],
-]
 const hhmm = (iso) => new Date(iso).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: false })
 
 // one round of an order: a coloured header (its colour is how long it has waited), the dishes, one button
@@ -56,16 +50,10 @@ function Ticket({ ticket, fresh, onMove }) {
           </li>
         ))}
       </ul>
-      <label className="stage">
-        <span>Status</span>
-        <select value={ticket.status} onChange={(e) => onMove(ticket.id, e.target.value)} aria-label={`Status of ${place}, round ${ticket.round_no}`}>
-          {STAGES.map(([value, label]) => (
-            <option key={value} value={value}>
-              {label}
-            </option>
-          ))}
-        </select>
-      </label>
+      <div className="stage">
+        <span className="stage-label">Status</span>
+        <StatusMenu value={ticket.status} onChange={(v) => onMove(ticket.id, v)} label={`Status of ${place}, round ${ticket.round_no}`} />
+      </div>
     </article>
   )
 }

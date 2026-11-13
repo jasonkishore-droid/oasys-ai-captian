@@ -249,6 +249,7 @@ export function createToolRunner(ctx) {
         table,
         already_called: body.repeated,
         waiter_on_the_way: body.call.status === 'acknowledged',
+        ...(body.call.status === 'acknowledged' && body.call.acknowledged_by && { waiter_name: body.call.acknowledged_by }), // who is coming
         next: body.repeated
           ? 'Say you have reminded the staff and someone will be with them shortly.'
           : 'Say a waiter has been called and will be with them shortly. Do not promise a time.',

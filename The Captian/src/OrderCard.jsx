@@ -206,7 +206,7 @@ export default function OrderCard({ order, onAction, onClose, onBack }) {
             style={emailBad ? { borderColor: danger } : undefined}
           />
           {emailBad && <span className="rc-error">That doesn’t look like an email address.</span>}
-          {order.error && <span className="rc-error">{order.error}</span>}
+          {order.error && <span className="rc-error" title={order.error}>{order.error}</span>}
           {order.printed ? (
             <span className="rc-done">✓ Paper receipt printed</span>
           ) : (

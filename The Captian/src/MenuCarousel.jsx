@@ -783,25 +783,6 @@ export default function MenuCarousel({ sections: allSections, section: ask, with
               <p className="mc-strip-empty">Tap a dish to add it to your order</p>
             ) : (
               <>
-                {/* a note for the kitchen about the whole round: a round button; hover or focus shows what it holds */}
-                <div className="mc-strip-note">
-                  <button
-                    type="button"
-                    className={`mc-strip-name mc-note-btn${roundNote ? ' noted' : ''}`}
-                    aria-label={roundNote ? `Kitchen note: ${roundNote}. Change it` : 'Add a note for the kitchen'}
-                    onClick={() => setNoteFor((n) => (n === 'round' ? null : 'round'))}
-                    disabled={sending}
-                  >
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                      <path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16v4z" />
-                      <path d="M13.5 6.5l4 4" />
-                    </svg>
-                    <span className="mc-note-tip" role="tooltip">
-                      <strong>Kitchen note</strong>
-                      <em>{roundNote || 'Tap to add a note for the kitchen about the whole order'}</em>
-                    </span>
-                  </button>
-                </div>
                 <ul
                   className="mc-strip-items"
                   // in the strip (a row), a mouse wheel scrolls it sideways; the side panel scrolls as usual
@@ -836,6 +817,25 @@ export default function MenuCarousel({ sections: allSections, section: ask, with
                     </li>
                   ))}
                 </ul>
+                {/* a note for the kitchen about the whole round: a small rounded square at the bottom, above Review order; hover or focus shows what it holds */}
+                <div className="mc-strip-note">
+                  <button
+                    type="button"
+                    className={`mc-strip-name mc-note-btn${roundNote ? ' noted' : ''}`}
+                    aria-label={roundNote ? `Kitchen note: ${roundNote}. Change it` : 'Add kitchen note'}
+                    onClick={() => setNoteFor((n) => (n === 'round' ? null : 'round'))}
+                    disabled={sending}
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16v4z" />
+                      <path d="M13.5 6.5l4 4" />
+                    </svg>
+                    <span className="mc-note-tip" role="tooltip">
+                      <strong>{roundNote ? 'Kitchen note' : 'Add kitchen note'}</strong>
+                      <em>{roundNote || 'Tap to add a note for the kitchen about the whole order'}</em>
+                    </span>
+                  </button>
+                </div>
                 <div className="mc-strip-actions">
                   <span className="mc-strip-sum">
                     <strong>{money(trayTotals(tray).total)}</strong>

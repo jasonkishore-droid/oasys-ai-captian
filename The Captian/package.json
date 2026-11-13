@@ -11,7 +11,11 @@
     "kds": "vite --config vite.kds.config.js",
     "kds:lan": "vite --config vite.kds.config.js --host",
     "build:kds": "vite build --config vite.kds.config.js",
-    "preview:kds": "vite preview --config vite.kds.config.js"
+    "preview:kds": "vite preview --config vite.kds.config.js",
+    "waiter": "vite --config vite.waiter.config.js",
+    "waiter:lan": "vite --config vite.waiter.config.js --host",
+    "build:waiter": "vite build --config vite.waiter.config.js",
+    "preview:waiter": "vite preview --config vite.waiter.config.js"
   },
   "dependencies": {
     "@mediapipe/tasks-vision": "^1.2.2",

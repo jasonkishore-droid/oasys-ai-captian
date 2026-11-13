@@ -111,24 +111,36 @@
 .kds-ticket .diet.nonveg { background: var(--late); }
 .kds-ticket .diet.egg { background: #e0b134; }
 .kds-ticket .req { grid-column: 2; margin-top: 2px; color: var(--ask-ink); font-size: 14px; font-style: italic; font-weight: 600; }
-.kds-ticket .stage { display: grid; gap: 4px; margin: 8px 14px 14px; color: var(--ink-soft); font-size: 11px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; }
-.kds-ticket .stage select {
-  width: 100%;
-  padding: 11px 38px 11px 14px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: var(--card) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%236f655c' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat right 14px center;
-  color: var(--ink);
-  font: inherit;
-  font-size: 16px;
-  font-weight: 700;
-  letter-spacing: 0;
-  text-transform: none;
-  appearance: none;
-  cursor: pointer;
-}
-.kds-ticket .stage select:hover { border-color: var(--ink-soft); }
-.kds-ticket[data-level='ok'] .stage select, .kds-ticket[data-level='warn'] .stage select, .kds-ticket[data-level='late'] .stage select { border-color: var(--btn); }
+/* the status dropdown: a button with the stage's colour, and a menu that opens upward over the ticket */
+.kds-ticket .stage { display: grid; gap: 6px; margin: 8px 14px 14px; }
+.kds-ticket .stage-label { color: var(--ink-soft); font-size: 11px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; }
+.status-menu { position: relative; }
+.status-btn { display: flex; align-items: center; gap: 10px; width: 100%; height: 48px; padding: 0 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--ink); font: 700 16px system-ui, 'Segoe UI', sans-serif; cursor: pointer; text-align: left; transition: border-color 0.15s, box-shadow 0.15s; }
+.status-btn:hover { border-color: var(--ink-soft); }
+.status-btn[aria-expanded='true'] { border-color: var(--btn); box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15); }
+.status-btn > span { flex: 1; }
+.status-chev { color: var(--ink-soft); transition: transform 0.15s; transform: rotate(180deg); }
+.status-btn[aria-expanded='true'] .status-chev { transform: rotate(0deg); }
+.status-dot { flex: none; width: 12px; height: 12px; border-radius: 50%; background: #9a948b; }
+.status-dot[data-stage='new'] { background: #3b82f6; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2); }
+.status-dot[data-stage='preparing'] { background: #e0912b; box-shadow: 0 0 0 3px rgba(224, 145, 43, 0.22); }
+.status-dot[data-stage='ready'] { background: #2f9e5b; box-shadow: 0 0 0 3px rgba(47, 158, 91, 0.2); }
+.status-dot[data-stage='served'] { background: #9a948b; box-shadow: 0 0 0 3px rgba(154, 148, 139, 0.22); }
+.status-list { position: absolute; left: 0; right: 0; bottom: calc(100% + 8px); z-index: 20; margin: 0; padding: 6px; list-style: none; background: var(--card); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 18px 44px rgba(40, 30, 20, 0.28); animation: status-in 0.14s ease-out both; }
+@keyframes status-in { from { opacity: 0; transform: translateY(4px); } }
+/* the ticket's dish-list rules (grid rows, dividers) must not reach the menu inside it */
+.kds-ticket .status-list { display: block; padding: 6px; }
+.kds-ticket .status-list li { display: block; grid-template-columns: none; margin: 0; padding: 0; border: 0; font-size: inherit; }
+.status-list button { display: flex; align-items: center; gap: 12px; width: 100%; padding: 10px 12px; border: 0; border-radius: 6px; background: none; color: var(--ink); font: 600 15px system-ui, 'Segoe UI', sans-serif; cursor: pointer; text-align: left; }
+.status-list button:hover, .status-list button:focus-visible { background: color-mix(in srgb, var(--btn) 10%, transparent); outline: none; }
+.status-list button[aria-selected='true'] { background: color-mix(in srgb, var(--btn) 14%, transparent); }
+.status-list button svg { flex: none; color: var(--btn); }
+.status-name { flex: 1; display: grid; line-height: 1.2; }
+.status-name small { color: var(--ink-soft); font-size: 12px; font-weight: 500; }
+/* the menu is drawn outside the ticket's edge, so the ticket must not clip it (its coloured header keeps a rounded top) */
+.kds-ticket { overflow: visible; }
+.kds-ticket > header { border-radius: 11px 11px 0 0; }
+@media (prefers-reduced-motion: reduce) { .status-list { animation: none; } .status-chev { transition: none; } }
 @media (max-width: 760px) {
   .kds-bar { flex-wrap: wrap; gap: 10px 16px; padding: 62px 14px 10px; }
   .kds-clock { display: none; }
@@ -141,3 +153,135 @@
 /* on its own port there are no app badges across the top, so the bar needs no room for them */
 .kds.standalone .kds-bar { padding-top: 14px; }
 @media (max-width: 760px) { .kds.standalone .kds-bar { padding-top: 12px; } }
+
+/* ---- the waiter calls tab: red while a call is unanswered ---- */
+.kds-tabs .kds-tab-calls { margin-left: auto; }
+.kds-tabs .kds-tab-calls.alert { color: var(--late); }
+.kds-tabs .kds-tab-calls.alert span { font-weight: 800; }
+.kds-tabs .kds-tab-calls.alert::before { content: ''; display: inline-block; width: 8px; height: 8px; margin-right: 8px; border-radius: 50%; background: var(--late); animation: kds-call-blink 1.1s ease-in-out infinite; vertical-align: 1px; }
+@keyframes kds-call-blink { 50% { opacity: 0.25; } }
+.kds-call[data-level='new'] > header { background: #3b82f6; }
+.kds-call[data-level='warn'] > header { background: var(--warn); }
+.kds-call[data-level='late'] > header { background: var(--late); }
+.kds-call[data-level='coming'] > header { background: var(--ok); }
+.kds-call .call-state { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; }
+.kds-call .call-body { display: grid; gap: 4px; padding: 14px 14px 4px; }
+.kds-call .call-reason { margin: 0; font: 700 22px/1.2 'Playfair Display', Georgia, serif; color: var(--ink); }
+.kds-call .call-hint { margin: 0; color: var(--ink-soft); font-size: 14px; }
+.kds-call .call-note { margin: 8px 0 0; }
+.kds-call .call-repeat { margin: 6px 0 0; color: var(--late); font-size: 13px; font-weight: 700; }
+.kds-call .call-actions { display: flex; gap: 10px; margin: 12px 14px 14px; }
+.kds-call .call-actions button { flex: 1 1 0; height: 48px; border-radius: 8px; border: 1px solid transparent; font: 700 16px system-ui, 'Segoe UI', sans-serif; cursor: pointer; }
+.kds-call .call-actions .primary { background: var(--btn); color: #fff; }
+.kds-call .call-actions .primary:hover { background: var(--btn-hover); }
+.kds-call .call-actions .quiet { background: none; border-color: var(--line); color: var(--ink-soft); }
+.kds-call .call-actions .quiet:hover { color: var(--ink); border-color: var(--ink-soft); }
+@media (prefers-reduced-motion: reduce) { .kds-tabs .kds-tab-calls.alert::before { animation: none; } }
+
+/* the summary row on the standalone waiter screen: plain counts instead of tabs */
+.waiter-summary { gap: 28px; }
+.waiter-summary span { padding: 12px 4px; color: var(--ink-soft); font-size: 14px; font-weight: 600; }
+.waiter-summary strong { font-weight: 500; }
+.waiter-summary .alert { color: var(--late); }
+.waiter-summary .alert strong { font-weight: 800; }
+
+/* ---- the animated stage icons (Preparing, Ready, Served, back to New): used by the tablet's order-status toasts ---- */
+.ico { overflow: visible; }
+
+/* preparing: steam rises off the pot, which bobs on the heat */
+.ico-preparing .steam { stroke-dasharray: 6; opacity: 0; animation: toast-steam 1.1s ease-in-out infinite; }
+.ico-preparing .s2 { animation-delay: 0.25s; }
+.ico-preparing .s3 { animation-delay: 0.5s; }
+@keyframes toast-steam { 0% { opacity: 0; transform: translateY(5px); } 40% { opacity: 1; } 100% { opacity: 0; transform: translateY(-5px); } }
+.ico-preparing .pot { animation: toast-bob 0.9s ease-in-out infinite; transform-box: fill-box; transform-origin: center bottom; }
+@keyframes toast-bob { 50% { transform: translateY(1px) scaleY(0.96); } }
+
+/* ready: the bell swings and settles */
+.ico-ready .bell { transform-box: fill-box; transform-origin: 50% 12%; animation: toast-ring 1.1s ease-in-out 0.1s both; }
+@keyframes toast-ring { 0%, 100% { transform: rotate(0); } 15% { transform: rotate(16deg); } 30% { transform: rotate(-14deg); } 45% { transform: rotate(10deg); } 60% { transform: rotate(-7deg); } 78% { transform: rotate(3deg); } }
+
+/* served: the tick draws itself on the plate */
+.ico-served .tick { stroke-dasharray: 20; stroke-dashoffset: 20; animation: toast-tick 520ms ease-out 0.3s forwards; }
+@keyframes toast-tick { to { stroke-dashoffset: 0; } }
+.ico-served { animation: toast-pop 420ms cubic-bezier(0.2, 0.9, 0.3, 1.4) 0.15s both; }
+@keyframes toast-pop { from { transform: scale(0.6); } }
+
+/* back to New: the arrow winds round once */
+.ico-new { animation: toast-wind 700ms ease-out both; }
+@keyframes toast-wind { from { transform: rotate(120deg) scale(0.8); opacity: 0.4; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .ico-preparing .steam, .ico-preparing .pot, .ico-ready .bell, .ico-served, .ico-served .tick, .ico-new { animation: none; }
+  .ico-served .tick { stroke-dashoffset: 0; }
+  .ico-preparing .steam { opacity: 1; }
+}
+
+/* ---- equal-size ticket cards: an even grid; a card with many dishes scrolls its dish list inside the card ---- */
+.kds-wall { column-width: auto; columns: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 16px; align-items: stretch; }
+.kds-wall > .kds-ticket { margin: 0; height: 440px; }
+.kds-wall .kds-ticket > header, .kds-wall .kds-ticket > .note, .kds-wall .kds-ticket > .stage { flex: none; }
+.kds-wall .kds-ticket > ul { flex: 1 1 auto; min-height: 0; overflow-y: auto; align-content: start; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--ink-soft) 55%, transparent) transparent; }
+.kds-wall .kds-ticket > ul::-webkit-scrollbar { width: 6px; }
+.kds-wall .kds-ticket > ul::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--ink-soft) 55%, transparent); border-radius: 999px; }
+/* waiter call cards are the same size as each other, shorter than a ticket */
+.kds-wall > .kds-call { height: 330px; }
+.kds-wall .kds-call .call-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; scrollbar-width: thin; }
+@media (max-width: 760px) { .kds-wall { grid-template-columns: 1fr; } }
+
+/* ======== the waiter calls screen, redesigned: an On duty card, then one row per table ======== */
+.wc-page { display: grid; gap: 18px; max-width: 980px; margin: 0 auto; }
+
+/* On duty: the waiter's saved name and suffix */
+.on-duty { display: grid; gap: 12px; padding: 16px 18px; border: 1px solid rgba(138, 98, 32, 0.4); border-radius: 12px; background: var(--card); box-shadow: var(--shadow); }
+.kds[data-theme='dark'] .on-duty { border-color: var(--line); }
+.od-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.od-head strong { font: 700 20px/1.2 'Playfair Display', Georgia, serif; color: #1d4ed8; }
+.kds[data-theme='dark'] .od-head strong { color: #7aa7ff; }
+.od-saved { font-size: 12px; font-weight: 600; color: var(--ink-soft); }
+.od-saved.on { color: var(--ok); }
+.od-fields { display: grid; grid-template-columns: 2fr 1fr; gap: 12px; }
+.od-fields label { display: grid; gap: 5px; }
+.od-fields label span { color: var(--ink-soft); font-size: 11px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; }
+.od-fields input { height: 46px; padding: 0 14px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--ink); font: 500 17px 'Fira Sans', system-ui, sans-serif; }
+.od-fields input:focus { outline: 2px solid var(--btn); outline-offset: 0; border-color: transparent; }
+.od-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.od-chips button { height: 34px; padding: 0 16px; border: 1px solid var(--line); border-radius: 6px; background: none; color: var(--ink); font: 600 14px 'Fira Sans', system-ui, sans-serif; cursor: pointer; }
+.od-chips button:hover { border-color: var(--ink-soft); }
+.od-chips button[aria-pressed='true'] { background: var(--btn); border-color: var(--btn); color: #fff; }
+.od-preview { margin: 0; color: var(--ink-soft); font-size: 14px; }
+.od-preview em { color: var(--ink); font-style: normal; font-weight: 700; }
+
+/* one row per table: a big table badge, what they want, and one button */
+.wc-list { display: grid; gap: 12px; }
+.wc { display: grid; grid-template-columns: 96px 1fr auto; align-items: stretch; overflow: hidden; border: 1px solid var(--line); border-radius: 12px; background: var(--card); box-shadow: var(--shadow); }
+.wc.fresh { animation: kds-arrive 1.4s ease-out; }
+.wc-table { display: grid; place-content: center; justify-items: center; gap: 2px; padding: 10px; color: #fff; background: #3b82f6; }
+.wc[data-level='warn'] .wc-table { background: var(--warn); }
+.wc[data-level='late'] .wc-table { background: var(--late); }
+.wc[data-level='coming'] .wc-table { background: var(--ok); }
+.wc-table small { font-size: 11px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; opacity: 0.85; }
+.wc-table strong { font: 700 34px/1 'Playfair Display', Georgia, serif; }
+.wc-main { display: grid; align-content: center; gap: 6px; padding: 14px 18px; min-width: 0; }
+.wc-top { display: flex; align-items: baseline; gap: 12px; }
+.wc-top h3 { margin: 0; font: 700 22px/1.2 'Playfair Display', Georgia, serif; color: var(--ink); }
+.wc-top time { margin-left: auto; color: var(--ink-soft); font-size: 18px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.wc[data-level='warn'] .wc-top time { color: var(--warn); }
+.wc[data-level='late'] .wc-top time { color: var(--late); }
+.wc-hint { margin: 0; color: var(--ink-soft); font-size: 14px; }
+.wc-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.wc-chips span { padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; background: color-mix(in srgb, var(--ink-soft) 14%, transparent); color: var(--ink-soft); }
+.wc-chips .wc-note { background: var(--ask-bg); color: var(--ask-ink); font-weight: 700; }
+.wc-chips .wc-again { background: color-mix(in srgb, var(--late) 14%, transparent); color: var(--late); }
+.wc-state { margin: 0; font-size: 14px; font-weight: 700; color: var(--ink); }
+.wc[data-level='coming'] .wc-state { color: var(--ok); }
+.wc-action { display: grid; align-content: center; justify-items: center; gap: 6px; padding: 14px 18px 14px 0; min-width: 190px; }
+.wc-action button { width: 100%; height: 54px; border: 0; border-radius: 6px; font: 700 17px 'Fira Sans', system-ui, sans-serif; cursor: pointer; color: #fff; background: var(--btn); }
+.wc-action button:hover:not(:disabled) { background: var(--btn-hover); }
+.wc-action button.done { background: var(--ok); }
+.wc-action button:disabled { opacity: 0.45; cursor: not-allowed; }
+.wc-action small { color: var(--ink-soft); font-size: 12px; }
+@media (max-width: 760px) {
+  .od-fields { grid-template-columns: 1fr; }
+  .wc { grid-template-columns: 76px 1fr; }
+  .wc-action { grid-column: 1 / -1; padding: 0 14px 14px; min-width: 0; }
+}

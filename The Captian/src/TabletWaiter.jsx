@@ -56,11 +56,12 @@ export default function TabletWaiter({ call, onCall, onCancel }) {
   }
 
   const coming = call.status === 'acknowledged'
+  const who = coming && call.acknowledged_by && call.acknowledged_by !== 'Kitchen screen' ? call.acknowledged_by : '' // the waiter's saved name
   return (
     <div className={`tablet-inventory tablet-waiter ${coming ? 'ok' : 'wait'}`} role="status" aria-live="polite">
       <span className="tablet-inventory-dot" aria-hidden="true" />
       <span>
-        {coming ? 'A waiter is on the way' : 'Waiter called'}
+        {coming ? (who ? `${who} is on the way` : 'A waiter is on the way') : 'Waiter called'}
         <small> · {ago(coming ? call.acknowledged_at : call.created_at, now)}</small>
       </span>
       {!coming && (

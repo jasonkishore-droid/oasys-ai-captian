@@ -9,6 +9,8 @@ import StudioOrder from './StudioOrder.jsx'
 import MenuCarousel, { findSection, loadMenuSections } from './MenuCarousel.jsx'
 import KitchenScreen from './kds/KitchenScreen.jsx'
 import TabletInfo from './TabletInfo.jsx'
+import CaptainToasts, { useCaptainToasts } from './CaptainToasts.jsx'
+import { useOrderStatus } from './useOrderStatus.js'
 import { useHeadTurn } from './useHeadTurn.js'
 import { sceneScale } from './lib/detection.js'
 import CameraCard from './CameraCard.jsx'
@@ -312,6 +314,7 @@ export default function App() {
   // and closes it) by polling: every 5 s while a call is active, every 30 s otherwise.
   const [waiterCall, setWaiterCall] = useState(null)
   const waiterStatus = useRef(null)
+  const captainToasts = useCaptainToasts() // toasts on this tablet: a waiter is on the way; the kitchen moved the order on
   const tableNo = String(settings.tableNo || '').trim()
   useEffect(() => {
     if (!tableNo) return setWaiterCall(null)
@@ -323,9 +326,13 @@ export default function App() {
         .catch(() => {})
     poll()
     const id = setInterval(poll, waiterCall ? 5000 : 30000)
+    // the server says at once when a waiter answers or finishes a call, so the tablet does not wait for the next poll
+    const es = typeof EventSource === 'undefined' ? null : new EventSource('/api/oasys/waiter/stream')
+    es?.addEventListener('waiter', poll)
     return () => {
       stopped = true
       clearInterval(id)
+      es?.close()
     }
   }, [tableNo, !!waiterCall])
   // tell Greeny when a waiter acknowledges the call, so it can pass that on
@@ -333,9 +340,26 @@ export default function App() {
     const was = waiterStatus.current
     waiterStatus.current = waiterCall?.status || null
     if (was === 'open' && waiterCall?.status === 'acknowledged') {
-      live.say('[App] A waiter has seen the table\'s call and is on the way. Tell the guest in a few words. Do not call any tool.')
+      // the name the waiter saved on the staff screen (with their suffix, e.g. "Ravi anna"), so Greeny can say who is coming
+      const who = waiterCall.acknowledged_by && waiterCall.acknowledged_by !== 'Kitchen screen' ? waiterCall.acknowledged_by : ''
+      captainToasts.push({ kind: 'waiter', title: who ? `${who} is on the way` : 'A waiter is on the way', line: `${waiterCall.table_no ? `Table ${waiterCall.table_no} · ` : ''}Your call was answered` })
+      live.say(
+        who
+          ? `[App] ${who} has seen the table's call and is on the way. Tell the guest in a few words that ${who} is coming over. Do not call any tool.`
+          : "[App] A waiter has seen the table's call and is on the way. Tell the guest in a few words. Do not call any tool."
+      )
     }
-  }, [waiterCall, live.say])
+  }, [waiterCall, live.say, captainToasts.push])
+  // Order status (F7): when the kitchen moves this table's order on, a toast says so
+  const STATUS_COPY = {
+    preparing: ['Preparing', 'Your order is being prepared'],
+    ready: ['Ready', 'Your order is ready'],
+    served: ['Served', 'Enjoy your meal'],
+  }
+  useOrderStatus(tableNo, (t) => {
+    const [title, line] = STATUS_COPY[t.status]
+    captainToasts.push({ kind: t.status, title, line: `${t.table_no ? `Table ${t.table_no} · ` : ''}Round ${t.round_no} · ${line}` })
+  })
   const tapWaiter = useCallback(
     async (tool) => {
       const r = await runTool(tool, {})
@@ -815,6 +839,7 @@ export default function App() {
           <TabletWaiter call={waiterCall} onCall={() => tapWaiter('call_waiter')} onCancel={() => tapWaiter('cancel_waiter_call')} />
         </div>
       )}
+      <CaptainToasts toasts={captainToasts.toasts} onDrop={captainToasts.drop} />
       {tabletOnly && cameraOn && <TabletCam stream={camStream} mirror={!rear} who={everyone} />}
       {tabletOnly && liveOn && (
         <div className="tablet-controls" role="toolbar" aria-label="Voice chat">

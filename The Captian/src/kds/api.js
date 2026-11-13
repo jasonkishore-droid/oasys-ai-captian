@@ -25,3 +25,17 @@ export const fetchRestaurant = async () => {
   const r = await fetch('/api/oasys/ping', { signal: AbortSignal.timeout(TIMEOUT_MS) })
   return r.ok ? (await r.json()).restaurant || '' : ''
 }
+
+// ---- waiter calls (server/inventory/waiter.js) ----
+const WAITER = '/api/oasys/waiter'
+const waiterCall = async (path, init = {}) => {
+  const r = await fetch(`${WAITER}${path}`, { cache: 'no-store', signal: AbortSignal.timeout(TIMEOUT_MS), ...init })
+  if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || `The server answered ${r.status}`)
+  return r.json()
+}
+const postCall = (path, body) => waiterCall(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+
+export const fetchCalls = async () => (await waiterCall('/calls')).calls
+export const acknowledgeCall = (id, by) => postCall('/ack', { id, by })
+export const finishCall = (id) => postCall('/done', { id })
+export const WAITER_STREAM_URL = `${WAITER}/stream`

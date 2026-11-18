@@ -64,7 +64,7 @@ export function liveProxy(env, getNames = async () => [], getFacts = async () =>
         client.close()
         return
       }
-      const model = env.GEMINI_LIVE_MODEL || 'gemini-live-2.5-flash-preview'
+      const model = env.GEMINI_LIVE_MODEL || 'gemini-3.8-live'
       // the settings dropdown may pick a voice; anything unknown falls back to .env
       const voice = VOICE_NAMES.has(voiceChoice) ? voiceChoice : env.GEMINI_LIVE_VOICE || 'Puck'
       let names = []

@@ -23,7 +23,8 @@ They share one SQLite database on the mounted disk, so the Captain's kitchen and
    |---|---|
    | `SEED_PASSWORD` | the password for the Stock Management accounts `admin`, `manager`, `cashier` (needed on the first start) |
    | `GEMINI_API_KEY` | your Gemini key (for the voice chat) |
-   | `GEMINI_LIVE_MODEL`, `GEMINI_LIVE_VOICE` | optional; same names as in `The Captian/.env.example` |
+   | `GEMINI_LIVE_MODEL` | `gemini-3.8-live` (the default; set it if Google retires that name and the voice chat says the model is not found) |
+   | `GEMINI_LIVE_VOICE` | optional, e.g. `Achird` |
    | `RESTAURANT_NAME` | optional, e.g. `Oasys Restaurant` |
 
    Do not add `PORT`: Railway sets it.

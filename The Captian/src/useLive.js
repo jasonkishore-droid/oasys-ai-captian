@@ -1,0 +1,351 @@
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { openMic } from './lib/mic.js'
+import { contextNote, pcmToBase64 } from './lib/speaker.js'
+
+// Voice chat with Gemini Live through the dev server's /api/live relay.
+// Mic audio goes up as 16 kHz PCM; the reply comes back as 24 kHz PCM, is
+// played gaplessly, and its loudness is exposed (levelRef) to drive the mouth.
+//
+// `face` is the name of the person the camera recognises and `speaker` is who
+// the voice matcher thinks is talking ({ name } or null); changes in either are
+// passed to the model as short notes. `onPcm` receives the mic chunks (while
+// the avatar itself isn't speaking) so a speaker matcher can listen too.
+
+const OUT_RATE = 24000
+
+function fromBase64(b64) {
+  const s = atob(b64)
+  const out = new Uint8Array(s.length)
+  for (let i = 0; i < s.length; i++) out[i] = s.charCodeAt(i)
+  return out
+}
+
+// The model sometimes writes a tool call into its reply instead of making it,
+// e.g. "*(show_emotion(emotion='happy', seconds=6))*". Words arrive in pieces,
+// so an unclosed *... is hidden until it closes (or for good if it never does).
+export function cleanSpoken(text) {
+  return text
+    .replace(/\*[^*]*(\*|$)/g, ' ') // *stage directions*
+    .replace(/\b[a-z]+(?:_[a-z]+)+\s*\([^()]*(\)|$)/g, ' ') // tool_name(args)
+    .replace(/\(\s*\)?\s*$|\(\s*\)/g, ' ') // brackets left empty by the above
+    .replace(/\s+([.,!?])/g, '$1')
+    .replace(/\s{2,}/g, ' ')
+    .trim()
+}
+
+export function useLive({ face = '', speaker = null, onPcm, voice = '', language = '', character = 'greeny', onToolCall } = {}) {
+  const [state, setState] = useState('off') // off | connecting | live | error
+  const [message, setMessage] = useState('')
+  const [speaking, setSpeaking] = useState(false)
+  const [muted, setMutedState] = useState(false) // the mic is open but nothing is sent
+  const mutedRef = useRef(false)
+  const [thinking, setThinking] = useState(false) // you finished talking, the reply has not started
+  const thinkTimer = useRef(0)
+  const [caption, setCaption] = useState('')
+  const [transcript, setTranscript] = useState([]) // [{ id, who: 'you' | 'greeny', text }], newest last
+  const lines = useRef([])
+  const levelRef = useRef(0)
+  const rt = useRef(null)
+  const faceRef = useRef(face)
+  const voiceRef = useRef(voice)
+  voiceRef.current = voice
+  const languageRef = useRef(language)
+  languageRef.current = language
+  const onPcmRef = useRef(onPcm)
+  const onToolRef = useRef(onToolCall)
+  onToolRef.current = onToolCall
+  const sentKey = useRef('')
+  faceRef.current = face
+  onPcmRef.current = onPcm
+
+  const stop = useCallback(() => {
+    const r = rt.current
+    rt.current = null
+    if (!r) return
+    cancelAnimationFrame(r.raf)
+    clearTimeout(r.capTimer)
+    clearTimeout(r.timeout)
+    clearTimeout(r.slow)
+    try { r.ws?.close() } catch { /* already closed */ }
+    r.mic?.stop()
+    r.outCtx.close().catch(() => {})
+    levelRef.current = 0
+    mutedRef.current = false
+    setMutedState(false)
+    clearTimeout(thinkTimer.current)
+    setThinking(false)
+    setSpeaking(false)
+    setCaption('')
+    lines.current = []
+    setTranscript([])
+  }, [])
+
+  // words keep arriving in pieces: extend the current line while the same side
+  // is talking, start a new one when the other side takes over
+  // lines keep the raw words; what is shown has written-out tool calls removed
+  const addWords = useCallback((who, text) => {
+    const l = lines.current
+    const last = l[l.length - 1]
+    if (last && last.who === who) l[l.length - 1] = { ...last, raw: last.raw + text }
+    else l.push({ id: (last?.id ?? 0) + 1, who, raw: text })
+    if (l.length > 8) l.shift()
+    setTranscript(l.map((x) => ({ id: x.id, who: x.who, text: x.who === 'greeny' ? cleanSpoken(x.raw) : x.raw })).filter((x) => x.text))
+  }, [])
+
+  const fail = useCallback((msg) => {
+    stop()
+    setState('error')
+    setMessage(msg)
+  }, [stop])
+
+  const start = useCallback(async () => {
+    if (rt.current) return
+    setState('connecting')
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setState('error')
+      setMessage('Microphone access needs a secure page: open the app at http://localhost:5175 (not a network address).')
+      return
+    }
+    setMessage('Waiting for microphone permission…')
+
+    const outCtx = new AudioContext({ sampleRate: OUT_RATE })
+    const analyser = outCtx.createAnalyser()
+    analyser.fftSize = 512
+    analyser.connect(outCtx.destination)
+
+    // the relay is opened only once the mic is ready (below): Gemini answers
+    // setupComplete within a second, and a permission prompt takes longer, so
+    // opening it first would lose that message and never go live
+    // hush: Stop talking was pressed, so the rest of the current reply is dropped
+    const r = { ws: null, mic: null, outCtx, raf: 0, capTimer: 0, playAt: 0, sources: new Set(), ready: false, hush: false, turnOpen: false, interrupt: null }
+    rt.current = r
+
+    // if the browser's permission prompt is ignored or hidden, say so instead of doing nothing
+    r.slow = setTimeout(() => {
+      if (rt.current === r && !r.ready) setMessage('Still waiting. Click the camera icon in the address bar and choose Allow for both the camera and the microphone.')
+    }, 6000)
+    try {
+      r.mic = await openMic((pcm) => {
+        if (!r.ready || r.ws?.readyState !== 1 || mutedRef.current) return
+        r.ws.send(
+          JSON.stringify({
+            realtimeInput: { audio: { data: pcmToBase64(pcm), mimeType: 'audio/pcm;rate=16000' } },
+          })
+        )
+        if (!r.sources.size) onPcmRef.current?.(pcm)
+      })
+    } catch (e) {
+      if (rt.current !== r) return
+      stop()
+      setState('error')
+      setMessage(
+        e.name === 'NotAllowedError' ? 'Microphone access was blocked.' : e.name === 'NotFoundError' ? 'No microphone found.' : `Audio setup failed: ${e.message}`
+      )
+      return
+    }
+    if (rt.current !== r) {
+      r.mic.stop() // stopped while the permission prompt was open
+      return
+    }
+    clearTimeout(r.slow) // the mic is open: any further wait is the connection, not a prompt
+    const proto = location.protocol === 'https:' ? 'wss' : 'ws'
+    const ws = new WebSocket(`${proto}://${location.host}/api/live?who=${encodeURIComponent(faceRef.current)}&voice=${encodeURIComponent(voiceRef.current)}&character=${encodeURIComponent(character)}&language=${encodeURIComponent(languageRef.current)}`)
+    r.ws = ws
+    setMessage('Connecting…')
+    r.timeout = setTimeout(() => {
+      if (rt.current === r && !r.ready) fail('Voice chat took too long to connect. Check the dev server and try again.')
+    }, 15000)
+
+    const buf = new Uint8Array(analyser.fftSize)
+    const tick = () => {
+      analyser.getByteTimeDomainData(buf)
+      let sum = 0
+      for (const v of buf) sum += ((v - 128) / 128) ** 2
+      const rms = Math.sqrt(sum / buf.length)
+      levelRef.current += (Math.min(1, rms * 7) - levelRef.current) * 0.7
+      r.raf = requestAnimationFrame(tick)
+    }
+    r.raf = requestAnimationFrame(tick)
+
+    const play = (pcm) => {
+      const n = pcm.length >> 1
+      const view = new DataView(pcm.buffer, pcm.byteOffset, n * 2)
+      const audio = outCtx.createBuffer(1, n, OUT_RATE)
+      const data = audio.getChannelData(0)
+      for (let i = 0; i < n; i++) data[i] = view.getInt16(i * 2, true) / 32768
+      const src = outCtx.createBufferSource()
+      src.buffer = audio
+      src.connect(analyser)
+      const at = Math.max(outCtx.currentTime + 0.03, r.playAt)
+      src.start(at)
+      r.playAt = at + audio.duration
+      r.sources.add(src)
+      setSpeaking(true)
+      clearTimeout(thinkTimer.current)
+      setThinking(false)
+      src.onended = () => {
+        r.sources.delete(src)
+        if (!r.sources.size) setSpeaking(false)
+      }
+    }
+
+    const interrupt = () => {
+      r.sources.forEach((s) => { try { s.stop() } catch { /* ended */ } })
+      r.sources.clear()
+      r.playAt = 0
+      setSpeaking(false)
+    }
+    r.interrupt = interrupt
+
+    ws.onmessage = (ev) => {
+      let m
+      try { m = JSON.parse(ev.data) } catch { return }
+      if (m.error) return fail(m.error)
+      if (m.toolCall) {
+        // run each requested tool in the app, then hand the results back to the model
+        const calls = m.toolCall.functionCalls || []
+        Promise.all(
+          calls.map(async (c) => ({
+            id: c.id,
+            name: c.name,
+            response: { output: (await onToolRef.current?.(c.name, c.args)) ?? { ok: false, error: 'No handler' } },
+          }))
+        ).then((functionResponses) => {
+          if (ws.readyState === 1) ws.send(JSON.stringify({ toolResponse: { functionResponses } }))
+        })
+        setThinking(true)
+        clearTimeout(thinkTimer.current)
+        thinkTimer.current = setTimeout(() => setThinking(false), 25000)
+        return
+      }
+      if (m.setupComplete) {
+        r.ready = true
+        clearTimeout(r.timeout)
+        clearTimeout(r.slow)
+        sentKey.current = `${faceRef.current}|`
+        setState('live')
+        setMessage('Listening')
+        return
+      }
+      const c = m.serverContent
+      if (!c) return
+      if (c.interrupted) {
+        interrupt()
+        r.hush = false
+        r.turnOpen = false
+      }
+      if (c.inputTranscription?.text) {
+        addWords('you', c.inputTranscription.text)
+        setThinking(true)
+        clearTimeout(thinkTimer.current)
+        thinkTimer.current = setTimeout(() => setThinking(false), 25000)
+      }
+      for (const p of c.modelTurn?.parts || []) {
+        if (!p.inlineData?.data) continue
+        r.turnOpen = true
+        if (!r.hush) play(fromBase64(p.inlineData.data))
+      }
+      if (c.outputTranscription?.text && !r.hush) {
+        addWords('greeny', c.outputTranscription.text)
+        setCaption((t) => (t + c.outputTranscription.text).slice(-160))
+        clearTimeout(r.capTimer)
+        r.capTimer = setTimeout(() => setCaption(''), 5000)
+      }
+      if (c.turnComplete) {
+        r.hush = false
+        r.turnOpen = false
+        clearTimeout(thinkTimer.current)
+        setThinking(false)
+        clearTimeout(r.capTimer)
+        r.capTimer = setTimeout(() => setCaption(''), 3500)
+      }
+    }
+    ws.onerror = () => fail('Could not reach the live relay. Is the dev server running?')
+    ws.onclose = () => {
+      if (rt.current === r) {
+        stop()
+        setState((s) => (s === 'error' ? s : 'off'))
+      }
+    }
+  }, [fail, stop])
+
+  useEffect(() => stop, [stop])
+
+  // The persona is set when the chat starts. After that, changes in who is on
+  // camera or who is speaking go to the model as notes that don't ask for a reply.
+  const spk = speaker ? speaker.name || '?' : '' // '?' = a voice that isn't saved
+  useEffect(() => {
+    const r = rt.current
+    if (!r?.ready || r.ws?.readyState !== 1) return
+    const key = `${face}|${spk}`
+    if (key === sentKey.current) return
+    sentKey.current = key
+    const note = contextNote(face, spk ? { name: spk === '?' ? null : spk } : null)
+    r.ws.send(JSON.stringify({ clientContent: { turns: [{ role: 'user', parts: [{ text: note }] }], turnComplete: false } }))
+  }, [face, spk, state])
+
+  // the voice and preferred language are fixed for the length of a session,
+  // so changing either reconnects
+  const sessionKey = `${voice}|${language}`
+  const lastVoice = useRef(sessionKey)
+  useEffect(() => {
+    if (lastVoice.current === sessionKey) return
+    lastVoice.current = sessionKey
+    if (!rt.current) return
+    stop()
+    setState('off')
+    const t = setTimeout(start, 250)
+    return () => clearTimeout(t)
+  }, [sessionKey, start, stop])
+
+  // end the chat without starting one (used when the avatar goes to sleep)
+  const end = useCallback(() => {
+    if (!rt.current) return
+    stop()
+    setState('off')
+    setMessage('')
+  }, [stop])
+
+  // ask the model to say something (a timer finished, someone arrived)
+  const say = useCallback((text) => {
+    const r = rt.current
+    if (!r?.ready || r.ws?.readyState !== 1) return false
+    r.ws.send(JSON.stringify({ realtimeInput: { text } }))
+    return true
+  }, [])
+
+  // show the model a picture (a screenshot for the mouse tools)
+  const sendImage = useCallback((data, mimeType = 'image/jpeg') => {
+    const r = rt.current
+    if (!r?.ready || r.ws?.readyState !== 1) return false
+    r.ws.send(JSON.stringify({ realtimeInput: { video: { data, mimeType } } }))
+    return true
+  }, [])
+
+  // mute: the chat stays open, but the mic's audio is no longer sent
+  const setMuted = useCallback((on) => {
+    mutedRef.current = on
+    setMutedState(on)
+  }, [])
+  const toggleMute = useCallback(() => setMuted(!mutedRef.current), [setMuted])
+
+  // stop talking: cut the reply off now and ignore what is left of it
+  const stopTalking = useCallback(() => {
+    const r = rt.current
+    if (!r?.interrupt) return
+    r.hush = r.turnOpen // only drop audio that is still on its way
+    r.interrupt()
+    clearTimeout(r.capTimer)
+    setCaption('')
+  }, [])
+
+  const toggle = useCallback(() => (rt.current ? (stop(), setState('off'), setMessage('')) : start()), [start, stop])
+
+  // close the error note without trying again
+  const dismiss = useCallback(() => {
+    setState((s) => (s === 'error' ? 'off' : s))
+    setMessage('')
+  }, [])
+
+  return { state, message, speaking, thinking, caption: cleanSpoken(caption), transcript, levelRef, toggle, end, dismiss, say, sendImage, muted, toggleMute, stopTalking }
+}

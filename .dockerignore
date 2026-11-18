@@ -1,0 +1,19 @@
+.git
+**/node_modules
+**/dist
+**/dist-*
+**/*.log
+# secrets and real data never go into the image
+**/.env
+**/.env.*
+!**/.env.example
+**/*.sqlite3
+**/*.sqlite3-*
+**/*.db
+**/*.db-*
+**/data
+**/print-jobs.log
+The Captian/assets/waiters/*
+The Captian/sidecar/pretrained
+Stock Management/server/data
+Vasamo Print

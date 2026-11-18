@@ -40,8 +40,34 @@ export function useLoad(fn, deps = []) {
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps);
+  // refresh: fetch again and swap the data in place, with no "loading" state (for live updates)
+  const refresh = useCallback(() => {
+    const n = ++seq.current;
+    return fn().then(
+      (data) => { if (n === seq.current) setState({ data, loading: false, error: '' }); return data; },
+      () => {}, // a failed background refresh keeps what is on screen
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, deps);
   useEffect(() => { reload(); }, [reload]);
-  return { ...state, reload, setData: (d) => setState((s) => ({ ...s, data: typeof d === 'function' ? d(s.data) : d })) };
+  return { ...state, reload, refresh, setData: (d) => setState((s) => ({ ...s, data: typeof d === 'function' ? d(s.data) : d })) };
+}
+
+// Calls `refresh` whenever the server says stock or the menu changed (also when the AI Captain's kitchen starts a round),
+// so a page that shows stock figures stays up to date without a reload. The server's first event just means "connected".
+export function useLiveStock(refresh) {
+  const latest = useRef(refresh);
+  latest.current = refresh;
+  useEffect(() => {
+    if (typeof EventSource === 'undefined') return undefined;
+    let first = true;
+    const es = new EventSource(`${import.meta.env.BASE_URL}api/stock/stream`); // reconnects by itself
+    es.addEventListener('stock', () => {
+      if (first) { first = false; return; }
+      latest.current?.();
+    });
+    return () => es.close();
+  }, []);
 }
 
 // ---------- components ----------

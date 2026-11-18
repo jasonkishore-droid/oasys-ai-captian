@@ -65,10 +65,10 @@ async function desktop(c, action, args = {}) {
 }
 
 // The restaurant's Stock Management app, reached through server/oasysApi.js.
-// Only used while "Connect to Vasamo" is on in settings.
+// Only used while "Connect to Oasys Restaurant" is on in settings.
 const OASYS_OFF = {
   ok: false,
-  error: 'Ordering is switched off. Tell the user to turn on "Connect to Vasamo" in Settings (Tracking tab) or in the tablet gear menu.',
+  error: 'Ordering is switched off. Tell the user to turn on "Connect to Oasys Restaurant" in Settings (Tracking tab) or in the tablet gear menu.',
 }
 
 async function oasys(path, body) {
@@ -231,7 +231,7 @@ export function createToolRunner(ctx) {
   })
 
   const handlers = {
-    // Call waiter (F6): works without "Connect to Vasamo", as it needs only the table number.
+    // Call waiter (F6): works without "Connect to Oasys Restaurant", as it needs only the table number.
     async call_waiter({ reason, note } = {}) {
       const c = ctx.current
       const table = c.tableNo?.() || ''
@@ -252,8 +252,8 @@ export function createToolRunner(ctx) {
         ok: true,
         table,
         already_called: body.repeated,
-        waiter_on_the_way: body.call.status === 'acknowledged',
-        ...(body.call.status === 'acknowledged' && body.call.acknowledged_by && { waiter_name: body.call.acknowledged_by }), // who is coming
+        waiter_on_the_way: ['acknowledged', 'arrived'].includes(body.call.status),
+        ...(['acknowledged', 'arrived'].includes(body.call.status) && body.call.acknowledged_by && { waiter_name: body.call.acknowledged_by }), // who is coming
         next: body.repeated
           ? 'Say you have reminded the staff and someone will be with them shortly.'
           : 'Say a waiter has been called and will be with them shortly. Do not promise a time.',
@@ -634,7 +634,7 @@ export function createToolRunner(ctx) {
       const q = new URLSearchParams({ ...(category && { section: category }), ...(search && { search }) })
       for (const [k, v] of dietaryQuery(f)) q.set(k, v)
       const { status, body } = await oasys(`menu${q.size ? `?${q}` : ''}`)
-      if (status !== 200) return { ok: false, error: body.error || 'Could not load the Vasamo menu.' }
+      if (status !== 200) return { ok: false, error: body.error || 'Could not load the Oasys Restaurant menu.' }
       if (f) {
         tableDiet = f
         const dishes = (body.dishes || []).filter((d) => !d.sold_out)
@@ -875,6 +875,39 @@ export function createToolRunner(ctx) {
     },
 
     // What is on the table's tab so far.
+    // Where is the food? Read-only: the kitchen's stage for each round on the table's open tab (see the kitchen screen).
+    async order_status() {
+      if (!ctx.current.oasysConnected()) return OASYS_OFF
+      const tab = await currentTab()
+      if (!tab || !tab.rounds.length) return { ok: true, ordered: false, note: 'Nothing has been ordered on this table yet.' }
+      const WORDS = {
+        new: 'received by the kitchen, not started yet',
+        preparing: 'being cooked now',
+        ready: 'cooked and ready, waiting for a waiter to bring it to the table',
+        on_the_way: 'on its way to the table',
+        served: 'already served',
+      }
+      const rounds = tab.rounds.map((r) => {
+        const st = WORDS[r.kitchen_status] ? r.kitchen_status : 'new'
+        return {
+          round: r.round_no,
+          items: (r.items || []).map((l) => `${l.quantity} x ${l.name}`),
+          status: st,
+          status_text: WORDS[st],
+          ...(st === 'on_the_way' && r.delivered_by && { being_brought_by: r.delivered_by }),
+        }
+      })
+      return {
+        ok: true,
+        ordered: true,
+        rounds,
+        next:
+          'Answer in one or two short sentences from status_text for each round, naming the dishes only if there is more than one round. ' +
+          'If being_brought_by is given, say that person is bringing it. Never give a time or minutes: the kitchen does not give one. ' +
+          'If a round is "received" or "being cooked" and the guest seems worried, say the kitchen is on it and offer to call a waiter. Do not call another tool.',
+      }
+    },
+
     async view_tab() {
       if (!ctx.current.oasysConnected()) return OASYS_OFF
       const tab = await currentTab()

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
-import { acknowledgeCall, fetchBoard, fetchCalls, fetchRestaurant, finishCall, setTicketStatus, STREAM_URL, WAITER_STREAM_URL } from './api.js'
+import { acknowledgeCall, arriveCall, releaseCall, fetchBoard, fetchCalls, fetchRestaurant, finishCall, setTicketStatus, STREAM_URL, WAITER_STREAM_URL } from './api.js'
+import { checkKdsLogin } from './kdsAuth.js'
 
 // ---- one shared clock: every timer on screen ticks from a single interval ----
 const listeners = new Set()
@@ -61,15 +62,15 @@ export function useBoard() {
 
   // move a ticket to another stage (new, preparing, ready, served): the card moves at once, and moves
   // back with a message if the server refuses. A served ticket leaves the board.
-  const move = useCallback(async (id, status) => {
+  const move = useCallback(async (id, status, extra = {}) => {
     let before = null
     busy.current.add(id)
     setTickets((cur) => {
       before = cur.find((t) => t.id === id) || null
-      return cur.map((t) => (t.id === id ? { ...t, status, ready_at: status === 'ready' ? new Date().toISOString() : t.ready_at } : t))
+      return cur.map((t) => (t.id === id ? { ...t, status, ready_at: status === 'ready' ? new Date().toISOString() : t.ready_at, delivered_by: status === 'on_the_way' ? extra.by || null : status === 'served' ? t.delivered_by : null, delivered_photo: status === 'on_the_way' ? extra.photo || null : status === 'served' ? t.delivered_photo : null } : t))
     })
     try {
-      await setTicketStatus(id, status)
+      await setTicketStatus(id, status, extra)
       setError('')
       return true
     } catch (e) {
@@ -167,7 +168,7 @@ export function useWakeLock() {
 
 // ---- the restaurant's name for the title ----
 export function useRestaurant() {
-  const [name, setName] = useState('Vasamo')
+  const [name, setName] = useState('Oasys Restaurant')
   useEffect(() => {
     let alive = true
     fetchRestaurant().then((n) => alive && n && setName(n)).catch(() => {})
@@ -235,15 +236,19 @@ export function useWaiterCalls() {
   }, [refresh])
 
   // 'ack' ("on my way") keeps the call on the screen, marked; 'done' takes it off. Both move at once and move back if refused.
-  const act = useCallback(async (id, kind, by) => {
+  const act = useCallback(async (id, kind, by, photo) => {
     let before = null
     busy.current.add(id)
     setCalls((cur) => {
       before = cur.find((c) => c.id === id) || null
-      return kind === 'done' ? cur.filter((c) => c.id !== id) : cur.map((c) => (c.id === id ? { ...c, status: 'acknowledged', acknowledged_by: by || null, acknowledged_at: new Date().toISOString() } : c))
+      if (kind === 'release') {
+        // back to open, nobody on it: the other waiters see it again
+        return cur.map((c) => (c.id === id ? { ...c, status: 'open', acknowledged_by: null, acknowledged_photo: null, acknowledged_at: null, arrived_at: null, declined_by: [...new Set([...(c.declined_by || '').split(', ').filter(Boolean), by || c.acknowledged_by].filter(Boolean))].join(', ') || null } : c))
+      }
+      return kind === 'done' ? cur.filter((c) => c.id !== id) : cur.map((c) => (c.id === id ? { ...c, status: kind === 'arrive' ? 'arrived' : 'acknowledged', acknowledged_by: c.acknowledged_by || by || null, acknowledged_photo: c.acknowledged_photo || photo || null, acknowledged_at: c.acknowledged_at || new Date().toISOString() } : c))
     })
     try {
-      await (kind === 'done' ? finishCall(id) : acknowledgeCall(id, by))
+      await (kind === 'done' ? finishCall(id) : kind === 'release' ? releaseCall(id, by) : kind === 'arrive' ? arriveCall(id, by, photo) : acknowledgeCall(id, by, photo))
       setError('')
     } catch (e) {
       if (before) setCalls((cur) => (cur.some((c) => c.id === id) ? cur.map((c) => (c.id === id ? before : c)) : [...cur, before].sort((a, b) => a.id - b.id)))
@@ -253,12 +258,13 @@ export function useWaiterCalls() {
     }
   }, [])
 
-  return { calls, loaded, online, error, clearError: () => setError(''), acknowledge: (id, by) => act(id, 'ack', by), finish: (id) => act(id, 'done') }
+  return { calls, loaded, online, error, clearError: () => setError(''), acknowledge: (id, by, photo) => act(id, 'ack', by, photo), arrive: (id, by, photo) => act(id, 'arrive', by, photo), release: (id, by) => act(id, 'release', by), finish: (id) => act(id, 'done') }
 }
 
-// ---- the waiter's own name, saved on this device: "Ravi" + a suffix such as "anna" -> "Ravi anna" ----
-const NAME_KEY = 'waiter-name'
-const SUFFIX_KEY = 'waiter-suffix'
+// ---- the waiter's own account: log in with a username and password, then the title, name and picture come from the
+// server (the waiters table) and every change is saved there. A copy is kept on this device so the screen opens at once. ----
+const TOKEN_KEY = 'waiter-token'
+const PROFILE_KEY = 'waiter-profile'
 const readSaved = (k) => {
   try {
     return localStorage.getItem(k) || ''
@@ -266,15 +272,152 @@ const readSaved = (k) => {
     return ''
   }
 }
+const writeSaved = (k, v) => {
+  try {
+    if (v) localStorage.setItem(k, v)
+    else localStorage.removeItem(k)
+  } catch { /* private window: it just isn't remembered */ }
+}
+const readProfile = () => {
+  try {
+    return JSON.parse(readSaved(PROFILE_KEY)) || null
+  } catch {
+    return null
+  }
+}
+const WAITERS = '/api/oasys/waiters'
 export function useWaiterName() {
-  const [name, setNameState] = useState(() => readSaved(NAME_KEY))
-  const [suffix, setSuffixState] = useState(() => readSaved(SUFFIX_KEY))
-  const keep = (key, set) => (v) => {
-    set(v)
+  const [token, setToken] = useState(() => readSaved(TOKEN_KEY))
+  const [profile, setProfileState] = useState(() => (readSaved(TOKEN_KEY) ? readProfile() : null))
+  const [photoBusy, setPhotoBusy] = useState(false)
+  const pending = useRef({}) // changes waiting to be sent to the server
+  const timer = useRef(null)
+
+  const setProfile = useCallback((p) => {
+    setProfileState(p)
+    writeSaved(PROFILE_KEY, p ? JSON.stringify(p) : '')
+  }, [])
+  const clear = useCallback(() => {
+    clearTimeout(timer.current)
+    pending.current = {}
+    setToken('')
+    writeSaved(TOKEN_KEY, '')
+    setProfile(null)
+  }, [setProfile])
+  const call = useCallback(
+    (method, path, tok, body) =>
+      fetch(`${WAITERS}/${path}`, {
+        method,
+        headers: { 'Content-Type': 'application/json', ...(tok && { Authorization: `Bearer ${tok}` }) },
+        ...(body && { body: JSON.stringify(body) }),
+        signal: AbortSignal.timeout(8000),
+      }),
+    []
+  )
+
+  // on opening: check the saved login is still good and refresh the profile (another device may have changed it)
+  useEffect(() => {
+    if (!token) return
+    call('GET', 'me', token)
+      .then(async (r) => {
+        if (r.status === 401) return clear()
+        const j = await r.json()
+        if (r.ok && j.waiter) setProfile(j.waiter)
+      })
+      .catch(() => {}) // offline: keep the saved copy
+  }, [token]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // returns true, or a message to show (wrong password, too many tries, server not answering)
+  const login = async (user, pass) => {
     try {
-      localStorage.setItem(key, v)
+      const r = await call('POST', 'login', '', { username: user.trim(), password: pass })
+      const j = await r.json()
+      if (!r.ok || !j.token) return j.error || 'Wrong username or password.'
+      setToken(j.token)
+      writeSaved(TOKEN_KEY, j.token)
+      setProfile(j.waiter)
+      return true
+    } catch {
+      return 'The server is not answering.'
+    }
+  }
+  const logout = () => {
+    if (token) call('POST', 'logout', token).catch(() => {})
+    clear()
+  }
+
+  // title, name and picture: shown at once, sent to the server a moment after the last change
+  const save = (patch) => {
+    setProfileState((cur) => {
+      const next = { ...cur, ...patch }
+      writeSaved(PROFILE_KEY, JSON.stringify(next))
+      return next
+    })
+    pending.current = { ...pending.current, ...patch }
+    clearTimeout(timer.current)
+    timer.current = setTimeout(async () => {
+      const body = { ...pending.current }
+      pending.current = {}
+      if ('name' in body && !String(body.name).trim()) delete body.name // the server needs a name; the box may just be empty while typing
+      if (!Object.keys(body).length) return
+      try {
+        const r = await call('PUT', 'me', token, body)
+        if (r.status === 401) clear()
+      } catch { /* offline: it stays on this screen and goes with the next change */ }
+    }, 500)
+  }
+
+  // a new picture is saved on the server (in assets/waiters) and its short path kept on the account
+  const setPhoto = async (dataUrl) => {
+    setPhotoBusy(true)
+    let value = dataUrl
+    try {
+      const r = await fetch('/api/oasys/waiter/photo', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: profile?.name || 'waiter', photo: dataUrl }) })
+      const j = await r.json()
+      if (r.ok && j.url) value = j.url
+    } catch { /* offline: the picture stays on this screen only */ }
+    if (value === dataUrl) setProfileState((cur) => ({ ...cur, photo: dataUrl })) // not saved on the account, but shown and sent with "On my way"
+    else save({ photo: value })
+    setPhotoBusy(false)
+  }
+
+  const name = profile?.name || ''
+  const prefix = profile?.prefix || ''
+  const full = name.trim() ? [prefix.trim(), name.trim()].filter(Boolean).join(' ') : '' // what is sent with "On my way" and what Greeny says
+  return {
+    username: profile?.username || '',
+    name,
+    prefix,
+    photo: profile?.photo || '',
+    photoBusy,
+    setPhoto,
+    full,
+    loggedIn: !!token && !!profile,
+    login,
+    logout,
+    setName: (v) => save({ name: v }),
+    setPrefix: (v) => save({ prefix: v }),
+  }
+}
+
+// ---- the Kitchen Display login: remembered on this device until Log out ----
+const KDS_SESSION_KEY = 'kds-session'
+export function useKdsLogin() {
+  const [loggedIn, setLoggedIn] = useState(() => readSaved(KDS_SESSION_KEY) === '1')
+  const store = (v) => {
+    try {
+      localStorage.setItem(KDS_SESSION_KEY, v ? '1' : '0')
     } catch { /* private window: it just isn't remembered */ }
   }
-  const full = [name.trim(), suffix.trim()].filter(Boolean).join(' ') // what is sent with "On my way" and what Greeny says
-  return { name, suffix, full, setName: keep(NAME_KEY, setNameState), setSuffix: keep(SUFFIX_KEY, setSuffixState) }
+  const login = (user, pass) => {
+    if (!checkKdsLogin(user, pass)) return false
+    setLoggedIn(true)
+    store(true)
+    return true
+  }
+  const logout = () => {
+    setLoggedIn(false)
+    store(false)
+  }
+  return { loggedIn, login, logout }
 }

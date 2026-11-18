@@ -3,7 +3,7 @@
 // Prices are typical of a mid-range Chennai family restaurant.
 
 export const RESTAURANT = {
-  name: 'Vasamo',
+  name: 'Oasys Restaurant',
   tagline: 'South Indian Kitchen',
   place: 'Chennai',
 };

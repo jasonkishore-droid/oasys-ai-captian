@@ -1,7 +1,7 @@
 {
   "name": "vasamo-stock",
   "private": true,
-  "description": "Vasamo South Indian Kitchen: ingredient stock, recipes, purchases and GST billing",
+  "description": "Oasys Restaurant: ingredient stock, recipes, purchases and GST billing",
   "engines": {
     "node": ">=22.12"
   },

@@ -9,12 +9,15 @@
 //   GET  /api/oasys/waiter?table_no=                     the table's active call (or null), for the tablet
 //   POST /api/oasys/waiter/cancel { id } | { table_no }  the guest no longer needs it
 //   GET  /api/oasys/waiter/calls                         every active call, oldest first, for the staff screen
-//   POST /api/oasys/waiter/ack    { id, by? }            a waiter is on the way
+//   POST /api/oasys/waiter/ack    { id, by?, photo? }    a waiter is on the way (photo: the path of a saved profile picture, or a small image data URL)
+//   POST /api/oasys/waiter/arrive { id, by?, photo? }    the waiter is at the table
+//   POST /api/oasys/waiter/release { id, by? }           "sorry, can't attend": back to open for the other waiters
 //   POST /api/oasys/waiter/done   { id }                 dealt with
 import { InventoryError } from './store.js'
 
 export const WAITER_REASONS = ['help', 'water', 'bill', 'cutlery', 'clean', 'other']
 export const WAITER_NOTE_MAX = 120
+export const WAITER_PHOTO_MAX = 60_000 // characters of data URL: a 160px JPEG is about 10,000
 
 const bad = (msg) => {
   throw new InventoryError(400, msg)
@@ -24,6 +27,15 @@ const text = (v, max, field) => {
   const s = String(v).replace(/\s+/g, ' ').trim()
   if (s.length > max) bad(`${field}: at most ${max} characters`)
   return s || null
+}
+// the waiter's profile picture: only a small image data URL, never a link, so the tablet cannot be made to load anything else
+export const photoOf = (v) => {
+  if (v === undefined || v === null || v === '') return null
+  const s = String(v)
+  if (s.length > WAITER_PHOTO_MAX) bad(`photo: too large (at most ${WAITER_PHOTO_MAX} characters)`)
+  if (/^\/assets\/waiters\/[a-z0-9-]{1,40}-[0-9a-f]{8}\.(jpg|png|webp)$/.test(s)) return s // a picture saved in assets/waiters
+  if (!/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(s)) bad('photo: must be a saved profile picture or a jpeg, png or webp data URL')
+  return s
 }
 const idOf = (v) => {
   const id = Number(v)
@@ -47,12 +59,12 @@ export const callView = (c) =>
   c && {
     id: c.id, table_no: c.table_no, session_id: c.session_id, reason: c.reason, note: c.note, source: c.source,
     status: c.status, repeats: c.repeats, created_at: c.created_at, updated_at: c.updated_at,
-    acknowledged_at: c.acknowledged_at, acknowledged_by: c.acknowledged_by, closed_at: c.closed_at,
+    acknowledged_at: c.acknowledged_at, acknowledged_by: c.acknowledged_by, acknowledged_photo: c.acknowledged_photo, arrived_at: c.arrived_at, declined_by: c.declined_by, closed_at: c.closed_at,
   }
 
 export function waiterApi(tabs) {
   const ok = (body, status = 200) => ({ status, body })
-  const set = (body, status) => ok({ ok: true, call: callView(tabs.setCallStatus(idOf(body.id), status, text(body.by, 40, 'by'))) })
+  const set = (body, status) => ok({ ok: true, call: callView(tabs.setCallStatus(idOf(body.id), status, text(body.by, 40, 'by'), photoOf(body.photo))) })
 
   return {
     call(body = {}) {
@@ -79,6 +91,8 @@ export function waiterApi(tabs) {
 
     active: () => ok({ ok: true, server_time: new Date().toISOString(), calls: tabs.activeCalls().map(callView) }),
     ack: (body = {}) => set(body, 'acknowledged'),
+    arrive: (body = {}) => set(body, 'arrived'),
+    release: (body = {}) => ok({ ok: true, call: callView(tabs.releaseCall(idOf(body.id), text(body.by, 40, 'by'))) }),
     done: (body = {}) => set(body, 'done'),
   }
 }

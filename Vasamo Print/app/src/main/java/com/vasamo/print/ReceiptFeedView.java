@@ -229,7 +229,7 @@ final class ReceiptFeedView extends View {
         paint.setColor(0xFFFFFFFF);
         paint.setTextSize(22 * dp);
         paint.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.BOLD));
-        canvas.drawText("VASAMO", side + 24 * dp, slotY + 54 * dp, paint);
+        canvas.drawText("OASYS RESTAURANT", side + 24 * dp, slotY + 54 * dp, paint);
         paint.setTextSize(14 * dp);
         paint.setTypeface(Typeface.DEFAULT);
         canvas.drawText(feed < 1f ? "Printing your bill..." : "Printed", side + 24 * dp, slotY + 78 * dp, paint);

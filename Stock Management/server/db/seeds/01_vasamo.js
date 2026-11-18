@@ -1,4 +1,4 @@
-// Vasamo starter data: staff, suppliers, ~120 ingredients, the 203 dishes from the Menu Card with recipes,
+// Oasys Restaurant starter data: staff, suppliers, ~120 ingredients, the 203 dishes from the Menu Card with recipes,
 // and (optionally) a couple of weeks of realistic trading so the dashboard and reports have something to show.
 //
 // Demo trading goes through the real billing/stock services, so every number in the ledger reconciles.
@@ -307,7 +307,7 @@ exports.seed = async (knex) => {
   }
 
   const billCount = billIds.length;
-  console.log(`  Vasamo seeded: ${ing.size} ingredients, ${dishes.length} dishes, ${recipeRows.length} recipe lines, ` +
+  console.log(`  Oasys Restaurant seeded: ${ing.size} ingredients, ${dishes.length} dishes, ${recipeRows.length} recipe lines, ` +
     `${billCount} demo bills over ${days} day(s) in ${((Date.now() - started) / 1000).toFixed(1)}s`);
   if (password === DEFAULT_PASSWORD) console.log(`  Sign in as admin / manager / cashier with password "${DEFAULT_PASSWORD}" (change it after first login)`);
 };

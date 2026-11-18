@@ -7,7 +7,7 @@ export const DEFAULTS = {
   recognize: true,
   multiFace: true, // recognise everyone in view, not just the nearest face
   desktopControl: false, // let Greeny move this computer's real mouse and keyboard (voice tools)
-  oasysOrdering: false, // connect to the Vasamo (Stock Management): read the menu and place orders by voice
+  oasysOrdering: false, // connect to the Oasys Restaurant (Stock Management): read the menu and place orders by voice
   tableNo: '', // the table this bot sits on, e.g. "T4": its open tab (the dining session) is kept under it
   gpu: false, // run the detection models on the GPU (WebGPU) when the browser has one; reload to apply
   voice: '', // '' = the server's GEMINI_LIVE_VOICE
@@ -33,7 +33,8 @@ export const DEFAULTS = {
   showBoxes: true,
 }
 
-const KEY = 'ai-captain-settings'
+export const SETTINGS_KEY = 'ai-captain-settings'
+const KEY = SETTINGS_KEY
 
 // The theme became light by default. Every setting is saved together, so a saved 'dark' (or
 // 'system') from before cannot be told apart from a choice: move those browsers to light once,

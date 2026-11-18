@@ -1,4 +1,4 @@
-# Vasamo Print
+# Oasys Restaurant Print
 
 Android app for the OASYS P10 terminal. It receives bills from the Stock Management website over
 Bluetooth LE and prints them on the terminal's built-in printer.

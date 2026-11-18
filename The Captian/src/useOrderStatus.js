@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 
 // Order status on the tablet (F7): while a table number is set, watch the kitchen's live stream and call
-// onChange(ticket) whenever one of THIS table's tickets moves to a new stage (preparing, ready, served).
+// onChange(ticket) whenever one of THIS table's tickets moves to a new stage (preparing, ready, on the way, served).
 // Tickets already on the board when the tablet starts are only remembered, never announced.
 export function useOrderStatus(tableNo, onChange) {
   const latest = useRef(onChange)
@@ -22,7 +22,7 @@ export function useOrderStatus(tableNo, onChange) {
         if (known) {
           for (const t of mine) {
             const was = known.get(t.id)
-            if (was !== undefined && was !== t.status && ['preparing', 'ready', 'served'].includes(t.status)) latest.current?.(t)
+            if (was !== undefined && was !== t.status && ['preparing', 'ready', 'on_the_way', 'served'].includes(t.status)) latest.current?.(t)
           }
         }
         known = new Map(mine.map((t) => [t.id, t.status]))

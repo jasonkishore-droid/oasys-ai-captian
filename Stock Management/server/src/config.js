@@ -20,7 +20,7 @@ const config = {
   corsOrigins: (env.CORS_ORIGINS || '').split(',').map((s) => s.trim()).filter(Boolean),
 
   restaurant: {
-    name: env.RESTAURANT_NAME || 'Vasamo',
+    name: env.RESTAURANT_NAME || 'Oasys Restaurant',
     tagline: env.RESTAURANT_TAGLINE || 'South Indian Kitchen',
     address: env.RESTAURANT_ADDRESS || 'Chennai, Tamil Nadu',
     phone: env.RESTAURANT_PHONE || '',
@@ -48,7 +48,7 @@ const config = {
 
   email: {
     resendKey: env.RESEND_API_KEY || '',
-    from: env.EMAIL_FROM || 'Vasamo <onboarding@resend.dev>',
+    from: env.EMAIL_FROM || 'Oasys Restaurant <onboarding@resend.dev>',
     replyTo: env.EMAIL_REPLY_TO || '',
   },
 

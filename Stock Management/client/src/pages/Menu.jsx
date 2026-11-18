@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { api } from '../api';
-import { useApp, useLoad, useToast, can, DietMark, Modal, Alert, Loading, Empty, Field, Segmented, Stat, StatusBadge } from '../ui.jsx';
+import { useApp, useLoad, useLiveStock, useToast, can, DietMark, Modal, Alert, Loading, Empty, Field, Segmented, Stat, StatusBadge } from '../ui.jsx';
 import { money, pct, qty, round2, downloadCsv } from '../format';
 
 const SORTS = [['menu', 'Menu order'], ['cost', 'Food cost % ↓'], ['margin', 'Margin ↓'], ['portions', 'Portions ↑']];
@@ -11,6 +11,7 @@ export default function Menu() {
   const manager = can(user, 'manager');
   const toast = useToast();
   const q = useLoad(() => Promise.all([api.dishes(), api.sections()]));
+  useLiveStock(q.refresh); // stays up to date when stock changes, including from the kitchen
   const [search, setSearch] = useState('');
   const [section, setSection] = useState('');
   const [sort, setSort] = useState('menu');
@@ -45,7 +46,7 @@ export default function Menu() {
     return priced.length ? priced.reduce((s, d) => s + d.food_cost_pct, 0) / priced.length : null;
   }, [dishes]);
 
-  const exportCsv = () => downloadCsv(`vasamo-menu-costing-${settings.business_date}.csv`, visible, [
+  const exportCsv = () => downloadCsv(`oasys-menu-costing-${settings.business_date}.csv`, visible, [
     { label: 'Section', value: (d) => d.section }, { label: 'Dish', value: (d) => d.name }, { label: 'Diet', value: (d) => d.diet },
     { label: 'Price (₹)', value: (d) => d.price }, { label: 'Recipe cost (₹)', value: (d) => d.cost },
     { label: 'Food cost %', value: (d) => d.food_cost_pct }, { label: 'Margin (₹)', value: (d) => d.margin },

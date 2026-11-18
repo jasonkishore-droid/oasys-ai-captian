@@ -496,6 +496,14 @@ export const TOOL_DECLARATIONS = [
     },
   },
   {
+    name: 'order_status',
+    description:
+      'Tell the guest where their food is: call it when they ask "where is my food?", "is my order ready?", "when will it come?" or ' +
+      '"is it being made?". It reads the kitchen\'s stage for every round on this table\'s open tab (received, being cooked, ready, ' +
+      'on its way, served) and who is bringing it. It only reads: it changes nothing and shows no card. Never promise a time.',
+    parameters: { type: 'OBJECT', properties: {} },
+  },
+  {
     name: 'view_tab',
     description:
       'Show what the table has ordered so far on its open tab (every round, and the running total) when the guest asks ' +

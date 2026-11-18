@@ -42,7 +42,7 @@ export function inventoryConfig(appEnv = {}) {
     dbFile: isAbsolute(sqlite) ? sqlite : resolve(appEnv.INVENTORY_DB ? ROOT : dir, sqlite),
     timezone: env.TIMEZONE || 'Asia/Kolkata',
     restaurant: {
-      name: env.RESTAURANT_NAME || 'Vasamo',
+      name: env.RESTAURANT_NAME || 'Oasys Restaurant',
       tagline: env.RESTAURANT_TAGLINE || 'South Indian Kitchen',
       address: env.RESTAURANT_ADDRESS || 'Chennai, Tamil Nadu',
       gstin: env.GSTIN || '',
@@ -55,7 +55,7 @@ export function inventoryConfig(appEnv = {}) {
     },
     email: {
       resendKey: env.RESEND_API_KEY || '',
-      from: env.EMAIL_FROM || 'Vasamo <onboarding@resend.dev>',
+      from: env.EMAIL_FROM || 'Oasys Restaurant <onboarding@resend.dev>',
       replyTo: env.EMAIL_REPLY_TO || '',
     },
   }

@@ -121,6 +121,7 @@ function createApp(db) {
   });
 
   app.use('/api/settings', require('./routes/settings')(db, deps));
+  app.use('/api', require('./routes/stream')(db));
   app.use('/api', require('./routes/stock')(db, deps));
   app.use('/api', require('./routes/menu')(db, deps));
   app.use('/api/purchases', require('./routes/purchases')(db, deps));

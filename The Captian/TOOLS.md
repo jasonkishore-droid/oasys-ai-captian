@@ -45,15 +45,16 @@ added later and have no number.
 | Computer | `type_text` | Type into whatever has focus. |
 | Computer | `press_keys` | Keys and shortcuts ("enter", "ctrl+t", "alt+tab"). |
 | Computer | `open_tab` | Open a new browser tab, at a site if named. |
-| Vasamo | `get_menu` | What the restaurant has available, with prices in rupees ("what dosas do you have?"). With `diet` (veg, egg, vegan, jain) and/or `avoid` (onion, garlic, nuts, gluten, seafood, ...) only what fits: "I'm Jain", "no onion", "I have a nut allergy". The filter is remembered for the table until the tab is paid, and `place_order` flags a dish that doesn't fit it. |
-| Vasamo | `place_order` | Match the spoken items, check stock and read the items back. Shows the order card. Does not ask about payment and saves nothing yet. |
-| Vasamo | `confirm_order` | After the guest's yes (or Confirm on the card): ask how they will pay (cash, UPI or card, spoken or tapped on the card), then create the bill in Stock Management with that payment mode (stock deducted) and offer an e-receipt. |
-| Vasamo | `print_receipt` | Print a paper receipt for the order just placed on the restaurant's Bluetooth printer (needs the Stock Management app open with the printer connected). |
-| Vasamo | `set_receipt_email` | Take the e-receipt address (said, or typed on the card) and spell it back for confirmation. Sends nothing. |
-| Vasamo | `send_receipt` | Email the e-receipt, only after the guest confirmed the address ("Yes, send" on the card or a spoken yes). |
-| Table | `call_waiter` | Call a person to the table ("can someone come over?", "some water please"), with a reason (help, water, bill, cutlery, clean, other). Same as the tablet's "Call waiter" button. Calling again reminds the staff. Needs the table number set, but not "Connect to Vasamo". |
+| Oasys Restaurant | `get_menu` | What the restaurant has available, with prices in rupees ("what dosas do you have?"). With `diet` (veg, egg, vegan, jain) and/or `avoid` (onion, garlic, nuts, gluten, seafood, ...) only what fits: "I'm Jain", "no onion", "I have a nut allergy". The filter is remembered for the table until the tab is paid, and `place_order` flags a dish that doesn't fit it. |
+| Oasys Restaurant | `place_order` | Match the spoken items, check stock and read the items back. Shows the order card. Does not ask about payment and saves nothing yet. |
+| Oasys Restaurant | `confirm_order` | After the guest's yes (or Confirm on the card): ask how they will pay (cash, UPI or card, spoken or tapped on the card), then create the bill in Stock Management with that payment mode (stock deducted) and offer an e-receipt. |
+| Oasys Restaurant | `order_status` | Where is the food? Reads the kitchen's stage for each round on the table's open tab (received, being cooked, ready, on its way, served) and who is bringing it. Read-only: shows no card and promises no time. |
+| Oasys Restaurant | `print_receipt` | Print a paper receipt for the order just placed on the restaurant's Bluetooth printer (needs the Stock Management app open with the printer connected). |
+| Oasys Restaurant | `set_receipt_email` | Take the e-receipt address (said, or typed on the card) and spell it back for confirmation. Sends nothing. |
+| Oasys Restaurant | `send_receipt` | Email the e-receipt, only after the guest confirmed the address ("Yes, send" on the card or a spoken yes). |
+| Table | `call_waiter` | Call a person to the table ("can someone come over?", "some water please"), with a reason (help, water, bill, cutlery, clean, other). Same as the tablet's "Call waiter" button. Calling again reminds the staff. Needs the table number set, but not "Connect to Oasys Restaurant". |
 | Table | `cancel_waiter_call` | Cancel the table's waiter call when the guest no longer needs it. |
-| Vasamo | `rate_meal` | After payment and receipts: without a rating it shows the 1-5 star card ("No thanks" on the receipt card and "Done" after an e-receipt lead there too); with a rating it saves it, with what they liked / what could be better and a comment. Rating again updates the same bill. On 1-2 stars Greeny apologises and offers a manager (`call_waiter`). |
+| Oasys Restaurant | `rate_meal` | After payment and receipts: without a rating it shows the 1-5 star card ("No thanks" on the receipt card and "Done" after an e-receipt lead there too); with a rating it saves it, with what they liked / what could be better and a comment. Rating again updates the same bill. On 1-2 stars Greeny apologises and offers a manager (`call_waiter`). |
 
 Ratings are saved one per bill in the `feedback` table of `data/tabs.sqlite3` (no guest name or face), through
 `server/inventory/feedback.js`: `POST /api/oasys/feedback { bill_no, rating, liked?, improve?, comment? }`, and
@@ -80,7 +81,7 @@ Until a dish is signed off, Greeny says it "should fit" but the guest must check
 always tells the guest to tell the staff too (shared kitchen, asafoetida that can contain wheat), and never calls
 a dish safe.
 
-The Vasamo tools need "Connect to Vasamo" switched on in Settings (Tracking tab) or the tablet's gear menu and the
+The Oasys Restaurant tools need "Connect to Oasys Restaurant" switched on in Settings (Tracking tab) or the tablet's gear menu and the
 Stock Management app running. `server/oasysApi.js` relays `/api/oasys/*` to `INVENTORY_API_URL`
 (default `http://127.0.0.1:4020`) and adds `ORDER_API_KEY`, which must match the same key in
 `Stock Management/server/.env`. The key stays on the server and never reaches the browser.

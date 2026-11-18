@@ -953,7 +953,10 @@
 .studio-order.in-menu .note.receipt-card { scrollbar-width: thin; }
 
 /* ---- the "on the way" toast on the guest's tablet: The Captain's card look, with an animated bell ---- */
-.cap-toasts { position: fixed; left: 50%; bottom: 28px; z-index: 40; display: flex; flex-direction: column-reverse; align-items: center; gap: 10px; transform: translateX(-50%); }
+/* the toasts sit at the top right, just under the call controls (mute, stop, end call), where nothing else lives:
+   at the bottom they covered the bot. The first one is at the top; a new one goes under it. */
+.cap-toasts { position: fixed; right: 20px; top: calc(max(16px, env(safe-area-inset-top)) + 72px); z-index: 40; display: flex; flex-direction: column; align-items: flex-end; gap: 12px; max-width: calc(100vw - 32px); pointer-events: none; }
+.cap-toasts > * { pointer-events: auto; }
 .cap-toast {
   --c: #2f9e5b;
   position: relative;
@@ -974,8 +977,8 @@
   font: inherit;
   animation: cap-toast-in 460ms cubic-bezier(0.2, 0.9, 0.3, 1.25) both, cap-toast-out 380ms ease-in calc(var(--show) - 380ms) forwards;
 }
-@keyframes cap-toast-in { from { opacity: 0; transform: translateY(30px) scale(0.92); } }
-@keyframes cap-toast-out { to { opacity: 0; transform: translateY(16px) scale(0.97); } }
+@keyframes cap-toast-in { from { opacity: 0; transform: translate(40px, -12px) scale(0.94); } }
+@keyframes cap-toast-out { to { opacity: 0; transform: translate(28px, -8px) scale(0.97); } }
 .cap-toast::after { content: ''; position: absolute; left: 0; bottom: 0; height: 3px; width: 100%; background: #2563eb; transform-origin: left; animation: cap-toast-time var(--show) linear forwards; }
 @keyframes cap-toast-time { to { transform: scaleX(0); } }
 .cap-toast-icon { position: relative; flex: none; display: grid; place-items: center; width: 54px; height: 54px; border-radius: 50%; background: color-mix(in srgb, var(--c) 14%, transparent); color: var(--c); }
@@ -984,12 +987,24 @@
 .cap-toast-icon .bell { transform-box: fill-box; transform-origin: 50% 12%; animation: cap-toast-ring 1.2s ease-in-out 0.15s 2 both; }
 @keyframes cap-toast-ring { 0%, 100% { transform: rotate(0); } 15% { transform: rotate(16deg); } 30% { transform: rotate(-14deg); } 45% { transform: rotate(10deg); } 60% { transform: rotate(-7deg); } 78% { transform: rotate(3deg); } }
 .cap-toast-text { display: grid; gap: 2px; min-width: 0; }
-.cap-toast-text strong { font: 700 20px/1.2 'Playfair Display', Georgia, serif; color: #1d4ed8; }
-.cap-toast-text small { color: #6b5443; font: 400 13px/1.35 'Fira Sans', system-ui, sans-serif; }
+.cap-toast { font-family: Roboto, system-ui, sans-serif; }
+.cap-toast-text strong { font: 700 20px/1.2 Roboto, system-ui, sans-serif; color: #1d4ed8; }
+.cap-toast-text small { color: #6b5443; font: 400 13px/1.35 Roboto, system-ui, sans-serif; }
+/* the waiter's own picture fills the round icon */
+.cap-toast-photo { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
+/* a waiter's toast with their picture is bigger: a large round photo, a larger name */
+.cap-toast[data-photo] { gap: 22px; min-width: 440px; max-width: min(92vw, 560px); padding: 18px 32px 22px 18px; border-radius: 18px; }
+.cap-toast[data-photo] .cap-toast-icon { width: 112px; height: 112px; box-shadow: 0 0 0 4px #fff, 0 0 0 6px color-mix(in srgb, var(--c) 55%, transparent), 0 8px 22px rgba(0, 0, 0, 0.25); }
+.cap-toast[data-photo] .cap-toast-text { gap: 6px; }
+.cap-toast[data-photo] .cap-toast-text strong { font-size: 28px; line-height: 1.15; }
+.cap-toast[data-photo] .cap-toast-text small { font-size: 17px; }
+.cap-toast[data-photo]::after { height: 4px; }
+@media (max-width: 600px) { .cap-toasts { right: 16px; } .cap-toast[data-photo] { min-width: 0; gap: 16px; } .cap-toast[data-photo] .cap-toast-icon { width: 88px; height: 88px; } .cap-toast[data-photo] .cap-toast-text strong { font-size: 22px; } .cap-toast[data-photo] .cap-toast-text small { font-size: 15px; } }
 @media (prefers-reduced-motion: reduce) { .cap-toast, .cap-toast::after, .cap-toast-icon .ripple, .cap-toast-icon .bell { animation: none; } }
 
 /* each kind of toast has its own colour; the animated picture inside comes from the kitchen's stage icons */
 .cap-toast[data-kind='preparing'] { --c: #e0912b; }
 .cap-toast[data-kind='ready'] { --c: #2f9e5b; }
+.cap-toast[data-kind='on_the_way'] { --c: #6366f1; }
 .cap-toast[data-kind='served'] { --c: #64748b; }
 .cap-toast-icon .ico { overflow: visible; }

@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef } from 'react'
+import Icon from './icons.jsx'
 
 // The "Studio" avatar: a ceramic head with a black glass screen. Two luminous
 // eyes and a thin mouth are drawn on the glass. A rAF loop eases every shape
@@ -61,7 +62,7 @@ function ease(cur, target, k) {
   for (const key in cur) cur[key] += (target[key] - cur[key]) * k
 }
 
-export default function StudioAvatar({ look, mood, mouthMood, contact, expression, syncLeft, syncRight, levelRef, variant = 'studio' }) {
+export default function StudioAvatar({ look, mood, mouthMood, contact, expression, syncLeft, syncRight, levelRef, variant = 'studio', onMute, muted, canMute, onStop, canStop }) {
   const uid = useId().replace(/:/g, '')
   const svgRef = useRef(null)
   const refs = useRef({})
@@ -237,6 +238,39 @@ export default function StudioAvatar({ look, mood, mouthMood, contact, expressio
             </g>
           </svg>
         </div>
+        {/* mute button set into the bottom rim: it stops the mic being sent, the chat stays open */}
+        {onStop && (
+          <button
+            type="button"
+            className="studio-mute studio-stop"
+            disabled={!canStop}
+            aria-label="Stop talking"
+            title={canStop ? 'Stop talking' : 'Stop talking (while Greeny speaks)'}
+            onClick={(e) => {
+              e.stopPropagation()
+              onStop()
+            }}
+          >
+            <Icon name="stop" size={20} />
+          </button>
+        )}
+        {onMute && (
+          <button
+            type="button"
+            className="studio-mute studio-mute-btn"
+            data-muted={muted ? 'true' : undefined}
+            disabled={!canMute}
+            aria-pressed={!!muted}
+            aria-label={muted ? 'Unmute microphone' : 'Mute microphone'}
+            title={canMute ? (muted ? 'Unmute' : 'Mute') : 'Mute (while talking to Greeny)'}
+            onClick={(e) => {
+              e.stopPropagation() // the bot itself is the talk button; this must not start or stop the chat
+              onMute()
+            }}
+          >
+            <Icon name={muted ? 'mic-off' : 'mic'} size={20} />
+          </button>
+        )}
         {variant === 'oasys' && <span className="oasys-led" />}
       </div>
     </div>

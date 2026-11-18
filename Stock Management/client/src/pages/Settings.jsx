@@ -50,8 +50,8 @@ export default function Settings() {
           Guests scan it with GPay, PhonePe, Paytm or any UPI app and just confirm. It appears on screen, on browser prints and on Bluetooth (PrintOD) prints.
         </p>
         <div className="grid two">
-          <Field label="UPI ID" error={!valid ? 'Should look like name@bank, e.g. vasamo@okhdfcbank' : ''} hint="From your UPI / merchant app, e.g. 9876543210@ybl">
-            <input value={f.upi_id} onChange={set('upi_id')} placeholder="vasamo@okhdfcbank" autoComplete="off" spellCheck={false} className={!valid ? 'invalid' : ''} />
+          <Field label="UPI ID" error={!valid ? 'Should look like name@bank, e.g. oasys@okhdfcbank' : ''} hint="From your UPI / merchant app, e.g. 9876543210@ybl">
+            <input value={f.upi_id} onChange={set('upi_id')} placeholder="oasys@okhdfcbank" autoComplete="off" spellCheck={false} className={!valid ? 'invalid' : ''} />
           </Field>
           <Field label="Name shown to the guest" hint={`Defaults to "${settings.restaurant.name}"`}>
             <input value={f.payee_name} onChange={set('payee_name')} placeholder={settings.restaurant.name} maxLength={50} />

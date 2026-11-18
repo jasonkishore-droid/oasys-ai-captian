@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 
-// Is Vasamo (the Stock Management app) answering? Checked whenever the connection is switched on.
+// Is Oasys Restaurant (the Stock Management app) answering? Checked whenever the connection is switched on.
 export function useVasamoStatus(enabled) {
   const [state, setState] = useState(null) // null | { ok: true | false | null, text }
   useEffect(() => {
@@ -13,7 +13,7 @@ export function useVasamoStatus(enabled) {
         if (!live) return
         setState(r.ok ? { ok: true, text: b.restaurant || b.club || 'Connected' } : { ok: false, text: b.error || `Error ${r.status}` })
       })
-      .catch(() => live && setState({ ok: false, text: 'Cannot reach Vasamo' }))
+      .catch(() => live && setState({ ok: false, text: 'Cannot reach Oasys Restaurant' }))
     return () => {
       live = false
     }
@@ -21,9 +21,9 @@ export function useVasamoStatus(enabled) {
   return state
 }
 
-// Tablet-only view: connect to Vasamo (the Stock Management app) so Greeny can read the
-// menu and place orders. It flips the same setting as the "Connect to Vasamo" switches in
-// Settings and the tablet's gear menu, then checks that Vasamo answers.
+// Tablet-only view: connect to Oasys Restaurant (the Stock Management app) so Greeny can read the
+// menu and place orders. It flips the same setting as the "Connect to Oasys Restaurant" switches in
+// Settings and the tablet's gear menu, then checks that Oasys Restaurant answers.
 export default function TabletInventory({ enabled, onChange }) {
   const state = useVasamoStatus(enabled)
   const dot = state?.ok === true ? 'ok' : state?.ok === false ? 'bad' : enabled ? 'wait' : ''
@@ -32,15 +32,15 @@ export default function TabletInventory({ enabled, onChange }) {
       className={`tablet-inventory ${dot}`}
       onClick={() => onChange(!enabled)}
       aria-pressed={enabled}
-      title={enabled ? 'Disconnect from Vasamo' : 'Connect to Vasamo to take orders'}
+      title={enabled ? 'Disconnect from Oasys Restaurant' : 'Connect to Oasys Restaurant to take orders'}
     >
       <span className="tablet-inventory-dot" aria-hidden="true" />
       {enabled ? (
         <span>
-          Vasamo · {state?.text || 'Connecting…'}
+          Oasys Restaurant · {state?.text || 'Connecting…'}
         </span>
       ) : (
-        <span>Connect to Vasamo</span>
+        <span>Connect to Oasys Restaurant</span>
       )}
     </button>
   )

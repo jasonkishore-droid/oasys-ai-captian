@@ -92,7 +92,8 @@ export function openStore(config) {
   }
 
   // ---- stock: the only code here that changes ingredient quantities, always with a ledger row ----
-  function applySale(use, { billId, billNo, at }) {
+  // use: ingredient id -> amount to take off (a negative amount puts it back). type/refType/refId/note go on the ledger row.
+  function applyUse(use, { type = 'sale', refType = 'bill', refId, note, at }) {
     const day = businessDate(new Date(at))
     for (const [ingredientId, q] of use) {
       const delta = round3(-q)
@@ -101,15 +102,34 @@ export function openStore(config) {
       if (!before) throw new InventoryError(400, `Ingredient ${ingredientId} not found`)
       run('UPDATE ingredients SET quantity = ROUND(quantity + ?, 3), updated_at = ? WHERE id = ?', delta, at, ingredientId)
       const balance = Number(get('SELECT quantity FROM ingredients WHERE id = ?', ingredientId).quantity)
-      if (balance < 0 && !config.billing.allowNegativeStock) {
+      if (delta < 0 && balance < 0 && !config.billing.allowNegativeStock) {
         throw new InventoryError(409, `Not enough ${before.name}: need ${round3(-delta)} ${before.unit}, have ${round3(before.quantity)} ${before.unit}`)
       }
       run(
         `INSERT INTO stock_movements (ingredient_id, type, quantity, balance_after, unit_cost, ref_type, ref_id, note, user_id, business_date, created_at)
-         VALUES (?, 'sale', ?, ?, ?, 'bill', ?, ?, NULL, ?, ?)`,
-        ingredientId, delta, balance, Number(before.avg_cost), billId, billNo, day, at
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)`,
+        ingredientId, type, delta, balance, Number(before.avg_cost), refType, refId, note, day, at
       )
     }
+  }
+  const applySale = (use, { billId, billNo, at }) => applyUse(use, { type: 'sale', refType: 'bill', refId: billId, note: billNo, at })
+
+  // the kitchen started a round (Preparing): its recipe ingredients come off the shelf now, not when the tab is paid.
+  // reverse: true puts them back (the ticket was recalled to New). The ledger rows are ref_type 'round'.
+  function roundStock(items, { roundId, note, reverse = false }) {
+    const lines = new Map()
+    for (const l of items) lines.set(l.dish_id, (lines.get(l.dish_id) || 0) + l.quantity)
+    const ids = [...lines.keys()]
+    if (!ids.length) return
+    const at = new Date().toISOString()
+    transaction(() => {
+      const recipes = recipesFor(ids)
+      const use = new Map()
+      for (const [dishId, q] of lines) {
+        for (const r of recipes.get(dishId) || []) use.set(r.ingredient_id, (use.get(r.ingredient_id) || 0) + r.quantity * q * (reverse ? -1 : 1))
+      }
+      applyUse(use, { type: reverse ? 'void' : 'sale', refType: 'round', refId: roundId, note, at })
+    })
   }
 
   // ---- bills ----
@@ -153,7 +173,8 @@ export function openStore(config) {
    */
   // tab: true closes an open tab, whose dishes were checked when they were ordered and may have
   // been marked unavailable since (they were eaten all the same), so that check is skipped
-  function createBill(order, { source = 'ai-captain', tab = false } = {}) {
+  // taken: dish id -> portions whose ingredients the kitchen already took off the shelf (see roundStock): not taken again here
+  function createBill(order, { source = 'ai-captain', tab = false, taken = new Map() } = {}) {
     const at = new Date().toISOString()
     const day = businessDate(new Date(at))
     const fy = financialYear(day)
@@ -197,7 +218,9 @@ export function openStore(config) {
       // sum recipe usage per ingredient, then take it off the shelf
       const use = new Map()
       for (const l of lines) {
-        for (const r of recipes.get(l.dish_id) || []) use.set(r.ingredient_id, (use.get(r.ingredient_id) || 0) + r.quantity * l.quantity)
+        const left = l.quantity - (taken.get(l.dish_id) || 0)
+        if (left <= 0) continue
+        for (const r of recipes.get(l.dish_id) || []) use.set(r.ingredient_id, (use.get(r.ingredient_id) || 0) + r.quantity * left)
       }
       applySale(use, { billId: id, billNo, at })
       return id
@@ -236,5 +259,5 @@ export function openStore(config) {
     }
   }
 
-  return { getUpi, listDishes, createBill, getBill, getBillByNo, peekNextBillNo, markEmailed, ordersSince, close: () => db.close() }
+  return { getUpi, listDishes, roundStock, createBill, getBill, getBillByNo, peekNextBillNo, markEmailed, ordersSince, close: () => db.close() }
 }

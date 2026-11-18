@@ -66,11 +66,18 @@ function backend(env) {
           res.end(JSON.stringify({ error: 'Database unavailable' }))
         }
       })
+    // /kds and /waiter are their own pages (kds.html, waiter.html); in dev Vite finds them, a built site needs the mapping
+    server.middlewares.use((req, _res, next) => {
+      const [path, query] = (req.url || '').split('?')
+      const to = path === '/kds' ? '/kds.html' : path === '/waiter' ? '/waiter.html' : null
+      if (to) req.url = query ? `${to}?${query}` : to
+      next()
+    })
     route(['/api/faces'], (db) => faceRoutes(db))
     route(['/api/voices', '/api/voice/'], (db) => voiceRoutes(db, voiceUrl))
     route(['/api/facts'], (db) => factRoutes(db))
     server.middlewares.use(photoRoutes(env.PHOTOS_DIR || 'data/photos')) // take_photo's "save to folder"
-    server.middlewares.use(oasysRoutes(env)) // Vasamo club app: menu + voice orders (get_menu, place_order)
+    server.middlewares.use(oasysRoutes(env)) // Oasys Restaurant club app: menu + voice orders (get_menu, place_order)
     // the mouse tools: this computer's real mouse and keyboard
     server.middlewares.use(desktopRoutes(startDesktopService(env, server), { allowLan: env.DESKTOP_ALLOW_LAN === '1' }))
     liveProxy(
@@ -100,5 +107,12 @@ export default defineConfig(({ mode }) => {
     const lan = { host: true, https: true, port: 5444, strictPort: true, headers }
     return { plugins: [react(), basicSsl(), backend(env)], server: lan, preview: lan }
   }
-  return { plugins: [react(), backend(env)], server: { headers }, preview: { headers } }
+  // build: the tablet app and the two staff pages. preview (what the deployed service runs) answers to any host name,
+  // because it sits behind the host's own address
+  return {
+    plugins: [react(), backend(env)],
+    server: { headers },
+    preview: { headers, allowedHosts: true },
+    build: { rollupOptions: { input: { main: 'index.html', kds: 'kds.html', waiter: 'waiter.html' } } },
+  }
 })

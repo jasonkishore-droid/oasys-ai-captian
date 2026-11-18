@@ -113,7 +113,7 @@ final class EscPos {
     static byte[] testPage(String when) {
         ByteArrayOutputStream p = new ByteArrayOutputStream();
         put(p, 0x1b, '@', 0x1b, 'a', 1, 0x1b, 'E', 1);
-        text(p, "VASAMO PRINT\n");
+        text(p, "OASYS RESTAURANT PRINT\n");
         put(p, 0x1b, 'E', 0);
         text(p, "Printer connected\n" + when + "\n");
         put(p, 0x1b, 'a', 0);

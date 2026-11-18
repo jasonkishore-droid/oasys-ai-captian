@@ -8,12 +8,13 @@
 // The tabs live in The Captain's own database (data/tabs.sqlite3), not the till's, so the
 // till's schema is untouched. A session is either open, closed (billed) or void (closed with
 // nothing on it).
+import { randomBytes } from 'node:crypto'
 import { mkdirSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { InventoryError } from './store.js'
 
-export const KITCHEN_STAGES = ['new', 'preparing', 'ready', 'served']
+export const KITCHEN_STAGES = ['new', 'preparing', 'ready', 'on_the_way', 'served']
 
 export function openTabs(file) {
   mkdirSync(dirname(file), { recursive: true })
@@ -51,7 +52,7 @@ export function openTabs(file) {
     db.exec('ALTER TABLE rounds ADD COLUMN ready_at TEXT')
   }
   // "Call waiter" alerts from the tables (see waiter.js). A table has at most one active call:
-  // open (waiting) or acknowledged (a waiter is on the way). Calling again only bumps `repeats`.
+  // open (waiting), acknowledged (a waiter is on the way) or arrived (the waiter is at the table). Calling again only bumps `repeats`.
   db.exec(`
     CREATE TABLE IF NOT EXISTS waiter_calls (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -60,7 +61,7 @@ export function openTabs(file) {
       reason TEXT NOT NULL DEFAULT 'help',            -- help | water | bill | cutlery | clean | other
       note TEXT,
       source TEXT NOT NULL DEFAULT 'button',          -- button | voice
-      status TEXT NOT NULL DEFAULT 'open',            -- open | acknowledged | done | cancelled
+      status TEXT NOT NULL DEFAULT 'open',            -- open | acknowledged | arrived | done | cancelled
       repeats INTEGER NOT NULL DEFAULT 0,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL,
@@ -70,6 +71,38 @@ export function openTabs(file) {
     );
     CREATE INDEX IF NOT EXISTS waiter_calls_active ON waiter_calls (status, table_no);
   `)
+  // the waiter's profile picture (a small data URL), sent with "on my way" so the guest's tablet can show who is coming
+  if (!db.prepare('PRAGMA table_info(waiter_calls)').all().some((c) => c.name === 'acknowledged_photo')) db.exec('ALTER TABLE waiter_calls ADD COLUMN acknowledged_photo TEXT')
+  if (!db.prepare('PRAGMA table_info(waiter_calls)').all().some((c) => c.name === 'arrived_at')) db.exec('ALTER TABLE waiter_calls ADD COLUMN arrived_at TEXT')
+  // Waiter accounts and their login sessions (see waiters.js). The password is only ever stored as a salted hash.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS waiters (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      username TEXT NOT NULL UNIQUE COLLATE NOCASE,
+      password_hash TEXT NOT NULL,
+      prefix TEXT NOT NULL DEFAULT '',                -- '' | Mr. | Mrs. | Ms.
+      name TEXT NOT NULL,
+      photo TEXT NOT NULL DEFAULT '',                 -- path of the picture in assets/waiters, e.g. /assets/waiters/ravi-1a2b3c4d.jpg
+      active INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS waiter_sessions (
+      token TEXT PRIMARY KEY,
+      waiter_id INTEGER NOT NULL REFERENCES waiters(id) ON DELETE CASCADE,
+      created_at TEXT NOT NULL
+    );
+  `)
+  // waiters who said "sorry, can't attend" (names, comma separated): the call goes back to open for the others
+  if (!db.prepare('PRAGMA table_info(waiter_calls)').all().some((c) => c.name === 'declined_by')) db.exec('ALTER TABLE waiter_calls ADD COLUMN declined_by TEXT')
+  // the kitchen took this round's ingredients off the shelf when it started it (so the till does not take them again,
+  // and the portions on open tabs are not counted twice)
+  if (!db.prepare('PRAGMA table_info(rounds)').all().some((c) => c.name === 'stock_taken')) db.exec('ALTER TABLE rounds ADD COLUMN stock_taken INTEGER NOT NULL DEFAULT 0')
+  // the waiter who collected a ready order and is taking it to the table (set with the stage "on the way")
+  if (!db.prepare('PRAGMA table_info(rounds)').all().some((c) => c.name === 'delivered_by')) {
+    db.exec('ALTER TABLE rounds ADD COLUMN delivered_by TEXT')
+    db.exec('ALTER TABLE rounds ADD COLUMN delivered_photo TEXT')
+  }
   // Feedback after payment (see feedback.js): one row per bill, updated if the guest rates again
   // (e.g. taps the stars, then adds a comment by voice). No guest name or face is stored with it.
   db.exec(`
@@ -93,8 +126,9 @@ export function openTabs(file) {
   const now = () => new Date().toISOString()
 
   const roundsOf = (id) =>
-    all('SELECT id, round_no, items, note, created_at FROM rounds WHERE session_id = ? ORDER BY round_no', id).map((r) => ({
+    all('SELECT id, round_no, items, note, created_at, kitchen_status, delivered_by FROM rounds WHERE session_id = ? ORDER BY round_no', id).map((r) => ({
       id: r.id, round_no: r.round_no, created_at: r.created_at, items: JSON.parse(r.items), ...(r.note && { kitchen_note: r.note }),
+      kitchen_status: r.kitchen_status, ...(r.delivered_by && { delivered_by: r.delivered_by }),
     }))
 
   function session(id) {
@@ -136,9 +170,24 @@ export function openTabs(file) {
   }
 
   // dish quantities on every open tab: ordered and cooked, but not out of stock until the tab closes
+  // a round's lines and whether its stock is already taken, for the kitchen's stage changes
+  function roundForStock(id) {
+    const r = get('SELECT r.id, r.round_no, r.items, r.stock_taken, s.table_no FROM rounds r JOIN sessions s ON s.id = r.session_id WHERE r.id = ?', Number(id) || 0)
+    return r && { id: r.id, round_no: r.round_no, table_no: r.table_no, stock_taken: !!r.stock_taken, items: JSON.parse(r.items) }
+  }
+  const setStockTaken = (id, on) => run('UPDATE rounds SET stock_taken = ? WHERE id = ?', on ? 1 : 0, id)
+  // dish id -> portions of a tab whose stock the kitchen already took
+  function takenFor(sessionId) {
+    const out = new Map()
+    for (const r of all('SELECT items FROM rounds WHERE session_id = ? AND stock_taken = 1', sessionId)) {
+      for (const i of JSON.parse(r.items)) out.set(i.dish_id, (out.get(i.dish_id) || 0) + i.quantity)
+    }
+    return out
+  }
+
   function reserved() {
     const out = new Map()
-    for (const r of all("SELECT r.items FROM rounds r JOIN sessions s ON s.id = r.session_id WHERE s.status = 'open'")) {
+    for (const r of all("SELECT r.items FROM rounds r JOIN sessions s ON s.id = r.session_id WHERE s.status = 'open' AND r.stock_taken = 0")) {
       for (const i of JSON.parse(r.items)) out.set(i.dish_id, (out.get(i.dish_id) || 0) + i.quantity)
     }
     return out
@@ -162,14 +211,15 @@ export function openTabs(file) {
     }
   }
 
-  // the Kitchen Display: tickets from the last 12 hours that are still cooking, plus those ready in the last 30 minutes and those served in the last 3 hours
+  // the Kitchen Display and the waiters' screen: tickets from the last 12 hours that are still cooking, plus those ready, on the way to the table or served in the last 3 hours
+  // (a ready order stays until it is served, so a waiter can still collect it)
   function board() {
     const cut = (ms) => new Date(Date.now() - ms).toISOString()
     const rows = all(
-      `SELECT r.id, r.session_id, r.round_no, r.items, r.note, r.created_at, r.kitchen_status AS status, r.ready_at, s.table_no, s.customer
+      `SELECT r.id, r.session_id, r.round_no, r.items, r.note, r.created_at, r.kitchen_status AS status, r.ready_at, r.delivered_by, r.delivered_photo, s.table_no, s.customer
        FROM rounds r JOIN sessions s ON s.id = r.session_id
-       WHERE s.status != 'void' AND r.created_at > ? AND (r.kitchen_status IN ('new', 'preparing') OR (r.kitchen_status = 'ready' AND r.ready_at > ?) OR (r.kitchen_status = 'served' AND r.ready_at > ?)) ORDER BY r.id`,
-      cut(12 * 3600e3), cut(30 * 60e3), cut(3 * 3600e3)
+       WHERE s.status != 'void' AND r.created_at > ? AND (r.kitchen_status IN ('new', 'preparing') OR (r.kitchen_status IN ('ready', 'on_the_way', 'served') AND r.ready_at > ?)) ORDER BY r.id`,
+      cut(12 * 3600e3), cut(3 * 3600e3)
     )
     return {
       tickets: rows.map(({ note, items, ...r }) => ({
@@ -180,16 +230,19 @@ export function openTabs(file) {
     }
   }
 
-  function setKitchenStatus(roundId, status) {
+  function setKitchenStatus(roundId, status, by = null, photo = null) {
     if (!KITCHEN_STAGES.includes(status)) throw new InventoryError(400, `status must be one of: ${KITCHEN_STAGES.join(', ')}`)
-    // the time it became ready is kept when it is served (it is hidden then), and cleared if it goes back to cooking
-    const readyAt = status === 'ready' ? now() : status === 'served' ? get('SELECT ready_at FROM rounds WHERE id = ?', roundId)?.ready_at || now() : null
-    const r = run('UPDATE rounds SET kitchen_status = ?, ready_at = ? WHERE id = ?', status, readyAt, roundId)
+    // the time it became ready is kept when it goes out to the table or is served (it is hidden later), and cleared if it goes back to cooking
+    const readyAt = status === 'ready' ? now() : status === 'on_the_way' || status === 'served' ? get('SELECT ready_at FROM rounds WHERE id = ?', roundId)?.ready_at || now() : null
+    // who is taking it to the table: set when a waiter collects it (on the way), kept when it is served, cleared if it goes back
+    const old = get('SELECT delivered_by, delivered_photo FROM rounds WHERE id = ?', roundId)
+    const who = status === 'on_the_way' ? [by, photo] : status === 'served' ? [old?.delivered_by ?? null, old?.delivered_photo ?? null] : [null, null]
+    const r = run('UPDATE rounds SET kitchen_status = ?, ready_at = ?, delivered_by = ?, delivered_photo = ? WHERE id = ?', status, readyAt, who[0], who[1], roundId)
     if (!r.changes) throw new InventoryError(404, 'Ticket not found')
   }
 
   // ---- waiter calls ----
-  const ACTIVE = "status IN ('open', 'acknowledged')"
+  const ACTIVE = "status IN ('open', 'acknowledged', 'arrived')"
   const call = (id) => get('SELECT * FROM waiter_calls WHERE id = ?', Number(id) || 0)
   const activeCallFor = (tableNo) => get(`SELECT * FROM waiter_calls WHERE ${ACTIVE} AND table_no = ? ORDER BY id DESC LIMIT 1`, tableNo)
 
@@ -211,21 +264,64 @@ export function openTabs(file) {
     return { call: call(id), repeated: false }
   }
 
-  // open -> acknowledged -> done; open or acknowledged -> cancelled (the guest no longer needs it)
-  function setCallStatus(id, status, by = null) {
+  // open -> acknowledged (on my way) -> arrived (at the table) -> done; any active call -> cancelled (the guest no longer needs it).
+  // A waiter may skip a step (open -> arrived, or any -> done).
+  function setCallStatus(id, status, by = null, photo = null) {
     const c = call(id)
     if (!c) throw new InventoryError(404, 'Waiter call not found')
     if (c.status === status) return c
-    const allowed = { acknowledged: ['open'], done: ['open', 'acknowledged'], cancelled: ['open', 'acknowledged'] }[status]
+    const allowed = { acknowledged: ['open'], arrived: ['open', 'acknowledged'], done: ['open', 'acknowledged', 'arrived'], cancelled: ['open', 'acknowledged', 'arrived'] }[status]
     if (!allowed?.includes(c.status)) throw new InventoryError(409, `This call is already ${c.status}`)
     const t = now()
-    if (status === 'acknowledged') run("UPDATE waiter_calls SET status = 'acknowledged', acknowledged_at = ?, acknowledged_by = ?, updated_at = ? WHERE id = ?", t, by, t, c.id)
-    else run('UPDATE waiter_calls SET status = ?, closed_at = ?, updated_at = ? WHERE id = ?', status, t, t, c.id)
+    if (status === 'acknowledged') run("UPDATE waiter_calls SET status = 'acknowledged', acknowledged_at = ?, acknowledged_by = ?, acknowledged_photo = ?, updated_at = ? WHERE id = ?", t, by, photo, t, c.id)
+    else if (status === 'arrived') {
+      // keeps who is coming (and their picture) from "on my way"; fills them in if the waiter skipped that step
+      run("UPDATE waiter_calls SET status = 'arrived', arrived_at = ?, acknowledged_at = COALESCE(acknowledged_at, ?), acknowledged_by = COALESCE(acknowledged_by, ?), acknowledged_photo = COALESCE(acknowledged_photo, ?), updated_at = ? WHERE id = ?", t, t, by, photo, t, c.id)
+    } else run('UPDATE waiter_calls SET status = ?, closed_at = ?, updated_at = ? WHERE id = ?', status, t, t, c.id)
+    return call(c.id)
+  }
+
+  // "Sorry, can't attend": a waiter who was on the way hands the call back. It goes back to open, with nobody on it, so the
+  // other waiters see it again; the name is kept on the call so they can see who could not come.
+  function releaseCall(id, by = null) {
+    const c = call(id)
+    if (!c) throw new InventoryError(404, 'Waiter call not found')
+    if (c.status === 'open') return c
+    if (c.status !== 'acknowledged') throw new InventoryError(409, c.status === 'arrived' ? 'The waiter is already at the table' : `This call is already ${c.status}`)
+    const names = (c.declined_by || '').split(', ').filter(Boolean)
+    const who = by || c.acknowledged_by
+    if (who && !names.includes(who)) names.push(who)
+    run("UPDATE waiter_calls SET status = 'open', acknowledged_at = NULL, acknowledged_by = NULL, acknowledged_photo = NULL, arrived_at = NULL, declined_by = ?, updated_at = ? WHERE id = ?", names.join(', ') || null, now(), c.id)
     return call(c.id)
   }
 
   // for the staff screen (KDS / floor view): every active call, oldest first
   const activeCalls = () => all(`SELECT * FROM waiter_calls WHERE ${ACTIVE} ORDER BY id`)
+
+  // ---- waiter accounts ----
+  const waiterCount = () => get('SELECT COUNT(*) AS n FROM waiters').n
+  const waiterByUsername = (u) => get('SELECT * FROM waiters WHERE username = ?', String(u))
+  const waiterById = (id) => get('SELECT * FROM waiters WHERE id = ?', Number(id) || 0)
+  // a new account, or (same username) a new password and profile
+  function saveWaiter({ username, password_hash, prefix, name, photo }) {
+    const t = now()
+    const old = waiterByUsername(username)
+    if (old) run('UPDATE waiters SET password_hash = ?, prefix = ?, name = ?, photo = ?, active = 1, updated_at = ? WHERE id = ?', password_hash, prefix, name, photo || old.photo, t, old.id)
+    else run('INSERT INTO waiters (username, password_hash, prefix, name, photo, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)', username, password_hash, prefix, name, photo, t, t)
+    return waiterByUsername(username)
+  }
+  function updateWaiter(id, { name, prefix, photo }) {
+    run('UPDATE waiters SET name = COALESCE(?, name), prefix = COALESCE(?, prefix), photo = COALESCE(?, photo), updated_at = ? WHERE id = ?', name ?? null, prefix ?? null, photo ?? null, now(), id)
+    return waiterById(id)
+  }
+  function createWaiterSession(waiterId) {
+    const token = randomBytes(24).toString('hex')
+    run('INSERT INTO waiter_sessions (token, waiter_id, created_at) VALUES (?, ?, ?)', token, waiterId, now())
+    run("DELETE FROM waiter_sessions WHERE created_at < datetime('now', '-30 days')") // sessions last 30 days
+    return token
+  }
+  const waiterBySession = (token) => get('SELECT w.* FROM waiter_sessions s JOIN waiters w ON w.id = s.waiter_id WHERE s.token = ?', token)
+  const deleteWaiterSession = (token) => run('DELETE FROM waiter_sessions WHERE token = ?', token)
 
   // ---- feedback ----
   const feedbackRow = (r) => r && { ...r, liked: JSON.parse(r.liked), improve: JSON.parse(r.improve) }
@@ -253,9 +349,10 @@ export function openTabs(file) {
     all('SELECT * FROM feedback WHERE id > ? ORDER BY id DESC LIMIT ?', sinceId, limit).map(feedbackRow)
 
   return {
-    session, openFor, open, addRound, close, voidSession, reserved, roundsSince, board, setKitchenStatus,
-    call, activeCallFor, callWaiter, setCallStatus, activeCalls,
+    session, openFor, open, addRound, close, voidSession, reserved, roundForStock, setStockTaken, takenFor, roundsSince, board, setKitchenStatus,
+    call, activeCallFor, callWaiter, setCallStatus, releaseCall, activeCalls,
     sessionByBill, feedbackFor, saveFeedback, feedbackList,
+    waiterCount, waiterByUsername, waiterById, saveWaiter, updateWaiter, createWaiterSession, waiterBySession, deleteWaiterSession,
     shutdown: () => db.close(),
   }
 }

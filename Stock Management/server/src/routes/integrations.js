@@ -154,7 +154,7 @@ module.exports = function integrationRoutes(db) {
 
   // Test page on the Bluetooth printer: queued here, printed by a signed-in tab that has the printer
   // connected (see services/printJobs.js). Poll the job to learn whether it printed.
-  const NO_TAB = 'No up-to-date Stock Management tab is open. Open it in a browser tab and sign in (if it is already open, press Reload on its "new version" banner), then press "Connect printer".';
+  const NO_TAB = 'The receipt printer is offline. Open the Stock Management app in a browser, sign in (reload it if it is already open), then press "Connect printer".';
   router.post('/print-test', (_req, res) => {
     if (!printJobs.tabOnline()) throw new HttpError(409, NO_TAB);
     const job = printJobs.add('test');

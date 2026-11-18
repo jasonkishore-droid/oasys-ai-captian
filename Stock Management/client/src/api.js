@@ -14,7 +14,7 @@ async function request(path, { method = 'GET', body, query } = {}) {
   const qs = query ? `?${new URLSearchParams(Object.entries(query).filter(([, v]) => v !== undefined && v !== '' && v !== null))}` : '';
   let res;
   try {
-    res = await fetch(`/api${path}${qs}`, {
+    res = await fetch(`${import.meta.env.BASE_URL}api${path}${qs}`, {
       method,
       credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json', Accept: 'application/json' },

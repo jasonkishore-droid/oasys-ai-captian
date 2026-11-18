@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api } from '../api';
-import { useApp, useLoad, useToast, DietMark, Modal, Alert, Loading, Segmented, Field } from '../ui.jsx';
+import { useApp, useLoad, useLiveStock, useToast, DietMark, Modal, Alert, Loading, Segmented, Field } from '../ui.jsx';
 import { money, computeTotals, round2, ORDER_TYPE_LABEL, PAYMENT_LABEL } from '../format';
 import Receipt from '../Receipt.jsx';
 import { PrintBillButton } from '../PrinterControl.jsx';
@@ -16,6 +16,7 @@ export default function Pos() {
   const { settings } = useApp();
   const toast = useToast();
   const dishesQ = useLoad(() => api.dishes());
+  useLiveStock(dishesQ.refresh); // "59 left" follows the kitchen: no reload needed
   const [section, setSection] = useState('all');
   const [search, setSearch] = useState('');
   const [diet, setDiet] = useState('all');

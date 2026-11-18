@@ -38,6 +38,7 @@ import { useSettings, useTheme } from './settings.js'
 import { usePersonTracker } from './usePersonTracker.js'
 import { useGestures } from './useGestures.js'
 import { gestureInfo, gestureMap } from './lib/gestures.js'
+import TabletLogin, { isTabletLoggedIn, tabletLogout } from './TabletLogin.jsx'
 
 // stable color per class so each object type keeps its box color
 function labelColor(cls) {
@@ -85,8 +86,8 @@ const HELP = {
 
 // AI Captain: the tablet bot on a round dining table (TabletBot3D), with the
 // voice chat, camera tracking, face and voice recognition and the tools
-// (Vasamo ordering, photos, timers, people, the computer's mouse).
-export default function App() {
+// (Oasys Restaurant ordering, photos, timers, people, the computer's mouse).
+function AppInner({ onLogout }) {
   const [mouse, setMouse] = useState(null)
   const [settings, set, reset] = useSettings()
   const theme = useTheme(settings.theme)
@@ -201,10 +202,10 @@ export default function App() {
   )
   const live = useLive({ face: everyone, speaker: voiceId.speaker, onPcm, voice: settings.voice, language: settings.language, character: 'greeny', onToolCall: runTool })
   const liveOn = live.state === 'live'
-  // connect to Vasamo (the Stock Management app): the gear menu, the info panel and Settings all flip this
+  // connect to Oasys Restaurant (the Stock Management app): the gear menu, the info panel and Settings all flip this
   const setVasamo = (on) => {
     set('oasysOrdering', on)
-    if (on) live.say('[App] Vasamo is now connected. You can read the menu and take orders. Do not reply to this note.')
+    if (on) live.say('[App] Oasys Restaurant is now connected. You can read the menu and take orders. Do not reply to this note.')
   }
 
   // small messages that fade away (timers, reminders)
@@ -342,23 +343,42 @@ export default function App() {
     if (was === 'open' && waiterCall?.status === 'acknowledged') {
       // the name the waiter saved on the staff screen (with their suffix, e.g. "Ravi anna"), so Greeny can say who is coming
       const who = waiterCall.acknowledged_by && waiterCall.acknowledged_by !== 'Kitchen screen' ? waiterCall.acknowledged_by : ''
-      captainToasts.push({ kind: 'waiter', title: who ? `${who} is on the way` : 'A waiter is on the way', line: `${waiterCall.table_no ? `Table ${waiterCall.table_no} · ` : ''}Your call was answered` })
+      // the table may already be saved as "Table 7": only add the word when it is just a number or a name
+      const tbl = String(waiterCall.table_no || '').trim()
+      const photo = /^(data:image\/|\/assets\/waiters\/)/.test(waiterCall.acknowledged_photo || '') ? waiterCall.acknowledged_photo : '' // the waiter's picture
+      captainToasts.push({ kind: 'waiter', group: 'waiter', photo, title: who ? `${who} is on the way` : 'A waiter is on the way', line: `${tbl ? `${/^table\b/i.test(tbl) ? tbl : `Table ${tbl}`} · ` : ''}Your call was answered` })
       live.say(
         who
           ? `[App] ${who} has seen the table's call and is on the way. Tell the guest in a few words that ${who} is coming over. Do not call any tool.`
           : "[App] A waiter has seen the table's call and is on the way. Tell the guest in a few words. Do not call any tool."
       )
     }
+    // the waiter who was coming cannot attend: the call went back to the other waiters
+    if ((was === 'acknowledged' || was === 'arrived') && waiterCall?.status === 'open') {
+      const tbl = String(waiterCall.table_no || '').trim()
+      captainToasts.push({ kind: 'waiter', group: 'waiter', title: 'Finding another waiter', line: `${tbl ? `${/^table\b/i.test(tbl) ? tbl : `Table ${tbl}`} · ` : ''}Someone else will be with you shortly` })
+    }
+    // the waiter tapped "On table 7": they are standing at the table now
+    if ((was === 'open' || was === 'acknowledged') && waiterCall?.status === 'arrived') {
+      const who = waiterCall.acknowledged_by && waiterCall.acknowledged_by !== 'Kitchen screen' ? waiterCall.acknowledged_by : ''
+      const photo = /^(data:image\/|\/assets\/waiters\/)/.test(waiterCall.acknowledged_photo || '') ? waiterCall.acknowledged_photo : ''
+      captainToasts.push({ kind: 'waiter', group: 'waiter', photo, title: who ? `${who} is at your table` : 'A waiter is at your table', line: 'How can we help?' })
+    }
   }, [waiterCall, live.say, captainToasts.push])
   // Order status (F7): when the kitchen moves this table's order on, a toast says so
   const STATUS_COPY = {
     preparing: ['Preparing', 'Your order is being prepared'],
     ready: ['Ready', 'Your order is ready'],
+    on_the_way: ['On the way', 'Your order is on its way to your table'],
     served: ['Served', 'Enjoy your meal'],
   }
   useOrderStatus(tableNo, (t) => {
-    const [title, line] = STATUS_COPY[t.status]
-    captainToasts.push({ kind: t.status, title, line: `${t.table_no ? `Table ${t.table_no} · ` : ''}Round ${t.round_no} · ${line}` })
+    const [title0, line] = STATUS_COPY[t.status]
+    // on the way: say who is bringing it, with their picture
+    const bringing = t.status === 'on_the_way' && t.delivered_by
+    const title = bringing ? `${t.delivered_by} is bringing your order` : title0
+    const photo = bringing && /^(data:image\/|\/assets\/waiters\/)/.test(t.delivered_photo || '') ? t.delivered_photo : ''
+    captainToasts.push({ kind: t.status, ...(photo && { photo }), title, line: `${t.table_no ? `${/^table\b/i.test(String(t.table_no)) ? t.table_no : `Table ${t.table_no}`} · ` : ''}Round ${t.round_no} · ${line}` })
   })
   const tapWaiter = useCallback(
     async (tool) => {
@@ -756,6 +776,11 @@ export default function App() {
               contact={awakeFace ? 0.9 : 0}
               expression={1}
               levelRef={live.levelRef}
+              onMute={live.toggleMute}
+              muted={live.muted}
+              canMute={liveOn}
+              onStop={live.stopTalking}
+              canStop={liveOn && live.speaking}
             />
           </div>
         </>
@@ -816,6 +841,7 @@ export default function App() {
               onToggle: (v) => set('gestures', v),
               onMap: (m) => set('gestureMap', m),
             }}
+            onLogout={onLogout}
             onVersion={(v) => {
               set('avatar', v)
               // #studio forces the Studio version, so leave it when picking another one
@@ -827,12 +853,19 @@ export default function App() {
             {settings.oasysOrdering && <TabletPrinter />}
           </TabletInfo>
           {settings.oasysOrdering && (
-            <button className="tablet-inventory" onClick={() => showMenu('')} aria-label="Show the menu card">
+            <button className="tablet-inventory tablet-dock-btn" onClick={() => showMenu('')} aria-label="Show the menu card">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M4 5.5A1.5 1.5 0 0 1 5.5 4H11v15H5.5A1.5 1.5 0 0 0 4 20.5zM20 5.5A1.5 1.5 0 0 0 18.5 4H13v15h5.5a1.5 1.5 0 0 1 1.5 1.5z" />
+              </svg>
               Menu
             </button>
           )}
           {/* Games: the button is here; what it opens is still to be decided */}
-          <button className="tablet-inventory" onClick={() => pushToast('Games are coming soon')} aria-label="Games">
+          <button className="tablet-inventory tablet-dock-btn" onClick={() => pushToast('Games are coming soon')} aria-label="Games">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <rect x="2.5" y="7" width="19" height="11" rx="5" />
+              <path d="M8 10.5v4M6 12.5h4M16 11.5h.01M18 13.5h.01" />
+            </svg>
             Games
           </button>
           {settings.oasysOrdering && tab && <TabletTab tab={tab} onOpen={showTab} />}
@@ -1165,5 +1198,19 @@ export default function App() {
         </button>
       </nav>
     </div>
+  )
+}
+
+// The tablet starts on its set-up page (table number and password); the app itself runs once that is done.
+export default function App() {
+  const [loggedIn, setLoggedIn] = useState(isTabletLoggedIn)
+  if (!loggedIn) return <TabletLogin onLogin={() => setLoggedIn(true)} />
+  return (
+    <AppInner
+      onLogout={() => {
+        tabletLogout()
+        setLoggedIn(false)
+      }}
+    />
   )
 }

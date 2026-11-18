@@ -37,14 +37,14 @@ function PrinterCheck() {
   )
 }
 
-// Vasamo: the Stock Management app. On, Greeny can read the menu and take orders.
+// Oasys Restaurant: the Stock Management app. On, Greeny can read the menu and take orders.
 function VasamoSwitch({ on, onToggle }) {
   const state = useVasamoStatus(on)
   const kind = state?.ok === true ? 'ok' : state?.ok === false ? 'bad' : 'wait'
   return (
     <>
       <div className="tablet-menu-title tablet-size-title">
-        Connect to Vasamo
+        Connect to Oasys Restaurant
         <label className="tablet-gesture-on">
           <input type="checkbox" checked={on} onChange={(e) => onToggle(e.target.checked)} /> {on ? 'On' : 'Off'}
         </label>
@@ -58,7 +58,7 @@ function VasamoSwitch({ on, onToggle }) {
   )
 }
 
-export default function TabletSettings({ version, onVersion, size = 1, maxSize = 1, onSize, table = '', onTable, printer = false, gestures = null, vasamo = null }) {
+export default function TabletSettings({ version, onVersion, size = 1, maxSize = 1, onSize, table = '', onTable, printer = false, gestures = null, vasamo = null, onLogout = null }) {
   const [open, setOpen] = useState(false)
   const [gesturesOpen, setGesturesOpen] = useState(false)
   const box = useRef(null)
@@ -137,6 +137,11 @@ export default function TabletSettings({ version, onVersion, size = 1, maxSize =
             </>
           )}
           {vasamo && <VasamoSwitch on={vasamo.on} onToggle={vasamo.onToggle} />}
+          {onLogout && (
+            <button type="button" className="tablet-size-reset tablet-logout" onClick={onLogout}>
+              Log out (change table)
+            </button>
+          )}
           {gestures && (
             <>
               <div className="tablet-menu-title tablet-size-title">

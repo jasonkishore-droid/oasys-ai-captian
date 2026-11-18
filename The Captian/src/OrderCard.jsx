@@ -87,7 +87,8 @@ export default function OrderCard({ order, onAction, onClose, onBack }) {
   const [email, setEmail] = useState(order.email || '')
   const [busy, setBusy] = useState(false)
   const [qr, setQr] = useState(false) // the UPI "scan to pay" pop-up
-  useEffect(() => { setEmail(order.email || ''); setBusy(false); setQr(false) }, [order])
+  const [confirmClose, setConfirmClose] = useState(false) // "Close the tab?" asked before the payment step
+  useEffect(() => { setEmail(order.email || ''); setBusy(false); setQr(false); setConfirmClose(false) }, [order])
   const typed = email.trim()
   const emailBad = typed !== '' && !EMAIL_RE.test(typed)
   const act = (tool, args) => { setBusy(true); onAction(tool, args) }
@@ -114,6 +115,24 @@ export default function OrderCard({ order, onAction, onClose, onBack }) {
     )
   }
 
+  if (order.stage === 'added' && confirmClose) {
+    // Close tab, step 2: are you sure? Yes goes on to "How will you pay?" (the tab is closed when they have paid)
+    return (
+      <div className="note surface order-note" role="alertdialog" aria-label="Close the tab?">
+        <strong>Close your tab?</strong>
+        <p style={{ opacity: 0.7 }}>Round {order.round || 1}{where}</p>
+        <div style={{ ...row, fontWeight: 700, borderTop: '1px solid currentColor', paddingTop: 4, marginBottom: 8 }}>
+          <span>Tab so far</span><span>{rupees(order.tab_total)}</span>
+        </div>
+        <p>You will not be able to order more once it is closed. Next, choose how to pay.</p>
+        <div className="note-actions">
+          <button className="btn primary sm" disabled={busy} onClick={() => act('close_tab', {})}>{busy ? 'Opening…' : 'Yes, close tab'}</button>
+          <button className="btn sm" disabled={busy} onClick={() => setConfirmClose(false)}>Not yet</button>
+        </div>
+      </div>
+    )
+  }
+
   if (order.stage === 'added') {
     return (
       <div className="note surface order-note" role="status" aria-label="Sent to the kitchen">
@@ -126,6 +145,7 @@ export default function OrderCard({ order, onAction, onClose, onBack }) {
         <p>Order more anytime. Say “close the tab” to pay.</p>
         <div className="note-actions">
           <button className="btn sm" disabled={busy} onClick={() => act('view_tab', {})}>See tab</button>
+          <button className="btn primary sm" disabled={busy} onClick={() => setConfirmClose(true)}>Close tab</button>
           <button className="btn sm" onClick={onClose}>Dismiss</button>
         </div>
       </div>

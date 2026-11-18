@@ -32,7 +32,7 @@ function usePrintJobs(settings, toast) {
       } catch (e) { error = e.message; toast(`${what} did not print: ${e.message}`, 'error'); }
       await api.printJobDone(job.id, !error, error).catch(() => {});
     };
-    const stream = new EventSource(`/api/print-queue/stream?tab=${TAB}`); // reconnects by itself if the server restarts
+    const stream = new EventSource(`${import.meta.env.BASE_URL}api/print-queue/stream?tab=${TAB}`); // reconnects by itself if the server restarts
     stream.onopen = reportPrinter; // (re)opened: tell the server where the printer stands
     stream.onmessage = (e) => {
       let job;

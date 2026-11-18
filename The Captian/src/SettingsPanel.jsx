@@ -4,7 +4,7 @@ import Icon from './icons.jsx'
 import { checkPrinter, printTestPage } from './printerTest.js'
 import GestureRows from './GestureSettings.jsx'
 
-// Shows whether the Vasamo app answers (checked whenever the switch is turned on).
+// Shows whether the Oasys Restaurant app answers (checked whenever the switch is turned on).
 function OasysStatus({ enabled }) {
   const [state, setState] = useState(null) // null | { ok, text }
   useEffect(() => {
@@ -14,9 +14,9 @@ function OasysStatus({ enabled }) {
     fetch('/api/oasys/ping')
       .then(async (r) => {
         const b = await r.json().catch(() => ({}))
-        if (live) setState(r.ok ? { ok: true, text: `Connected to ${b.club || 'Vasamo'}` } : { ok: false, text: b.error || `Error ${r.status}` })
+        if (live) setState(r.ok ? { ok: true, text: `Connected to ${b.club || 'Oasys Restaurant'}` } : { ok: false, text: b.error || `Error ${r.status}` })
       })
-      .catch(() => live && setState({ ok: false, text: 'Cannot reach Vasamo' }))
+      .catch(() => live && setState({ ok: false, text: 'Cannot reach Oasys Restaurant' }))
     return () => { live = false }
   }, [enabled])
   if (!state) return null
@@ -341,9 +341,9 @@ export default function SettingsPanel({ settings, set, reset, onClose, anchorRef
               onChange={(v) => set('desktopControl', v)}
             />
 
-            <p className="group-title">Vasamo</p>
+            <p className="group-title">Oasys Restaurant</p>
             <Switch
-              label="Connect to Vasamo"
+              label="Connect to Oasys Restaurant"
               hint="It can read the menu and take orders by voice. Each round goes on the table's open tab and to the kitchen; the tab is billed and paid once, when the guests ask to close it."
               checked={settings.oasysOrdering}
               onChange={(v) => set('oasysOrdering', v)}

@@ -2,11 +2,11 @@
 const express = require('express');
 const { z } = require('zod');
 
-// UPI virtual payment address, e.g. vasamo@okhdfcbank, 9876543210@ybl
+// UPI virtual payment address, e.g. oasys@okhdfcbank, 9876543210@ybl
 const VPA = /^[a-zA-Z0-9._-]{2,256}@[a-zA-Z][a-zA-Z0-9.-]{1,64}$/;
 
 const upiSchema = z.object({
-  upi_id: z.union([z.string().trim().regex(VPA, 'should look like name@bank, e.g. vasamo@okhdfcbank'), z.literal('')]),
+  upi_id: z.union([z.string().trim().regex(VPA, 'should look like name@bank, e.g. oasys@okhdfcbank'), z.literal('')]),
   payee_name: z.string().trim().max(50).default(''),
   enabled: z.boolean(),
   only_upi_bills: z.boolean().default(false),

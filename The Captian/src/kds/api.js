@@ -15,8 +15,9 @@ async function call(path, init = {}) {
 export const fetchBoard = async () => (await call('/board')).tickets
 
 // status: 'ready' (bump) or 'new' (recall)
-export const setTicketStatus = (id, status) =>
-  call('/status', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, status }) })
+// extra: { by, photo } when a waiter collects a ready order (on_the_way): who is taking it to the table
+export const setTicketStatus = (id, status, extra = {}) =>
+  call('/status', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, status, ...(extra.by && { by: extra.by }), ...(extra.photo && { photo: extra.photo }) }) })
 
 export const STREAM_URL = `${BASE}/stream`
 
@@ -36,6 +37,8 @@ const waiterCall = async (path, init = {}) => {
 const postCall = (path, body) => waiterCall(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
 
 export const fetchCalls = async () => (await waiterCall('/calls')).calls
-export const acknowledgeCall = (id, by) => postCall('/ack', { id, by })
+export const acknowledgeCall = (id, by, photo) => postCall('/ack', { id, by, ...(photo && { photo }) })
+export const releaseCall = (id, by) => postCall('/release', { id, by })
+export const arriveCall = (id, by, photo) => postCall('/arrive', { id, by, ...(photo && { photo }) })
 export const finishCall = (id) => postCall('/done', { id })
 export const WAITER_STREAM_URL = `${WAITER}/stream`

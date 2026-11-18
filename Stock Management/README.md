@@ -1,6 +1,6 @@
-# Vasamo · Stock & Billing
+# Oasys Restaurant · Stock & Billing
 
-Ingredient stock, recipes, purchases and GST billing for **Vasamo, South Indian Kitchen (Chennai)**.
+Ingredient stock, recipes, purchases and GST billing for **Oasys Restaurant (Chennai)**.
 The 203 dishes and prices come from the guest-facing [Menu Card](../Menue%20Card/src/menu.js); every dish has a standard recipe,
 so **selling a dish deducts its ingredients from stock** and the app knows the food cost of every plate.
 

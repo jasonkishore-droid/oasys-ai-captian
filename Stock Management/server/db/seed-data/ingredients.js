@@ -1,4 +1,4 @@
-// Raw materials for Vasamo's kitchen. Costs are approximate Chennai wholesale prices (₹ per unit, 2026).
+// Raw materials for Oasys Restaurant's kitchen. Costs are approximate Chennai wholesale prices (₹ per unit, 2026).
 // Par levels are not set here: the seed derives them from two-and-a-half days of typical usage.
 //
 // [name, category, unit, ₹ cost per unit, supplier key, storage, shelf life in days | null]

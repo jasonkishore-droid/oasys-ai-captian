@@ -410,7 +410,7 @@ final class Tabs {
             TextView logs = Ui.secondary(c, "Export logs");
             logs.setOnClickListener(v -> host.exportLogs());
             content.addView(logs, Ui.gapAbove(c, 8));
-            TextView version = Ui.muted(c, "Vasamo Print version " + version());
+            TextView version = Ui.muted(c, "Oasys Restaurant Print version " + version());
             version.setGravity(Gravity.CENTER);
             version.setPadding(0, Ui.dp(c, 16), 0, 0);
             content.addView(version);

@@ -5,10 +5,11 @@ export const STAGES = [
   ['new', 'New', 'Just in'],
   ['preparing', 'Preparing', 'Being cooked'],
   ['ready', 'Ready', 'Ready to take out'],
+  ['on_the_way', 'On the way', 'Taking it to the table'],
   ['served', 'Served', 'On the table'],
 ]
 
-// The status dropdown on a ticket: a button showing the stage with its colour, and a styled menu of the four
+// The status dropdown on a ticket: a button showing the stage with its colour, and a styled menu of the five
 // stages (colour dot, name, hint, a tick on the current one). Keyboard: Up/Down/Home/End move, Enter/Space
 // choose, Escape closes. It opens upward, over the ticket.
 export default function StatusMenu({ value, onChange, label }) {

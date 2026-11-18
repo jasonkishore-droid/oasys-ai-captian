@@ -8,7 +8,7 @@
 
 ## 1. Project summary
 
-OASYS AI Captain is a restaurant system for **Vasamo, South Indian Kitchen (Chennai)**. A tablet "waiter" sits on each dining table, recognises guests, talks with them out loud and takes their orders. It connects to a stock and billing backend and prints bills on an OASYS P10 terminal.
+OASYS AI Captain is a restaurant system for **Oasys Restaurant (Chennai)**. A tablet "waiter" sits on each dining table, recognises guests, talks with them out loud and takes their orders. It connects to a stock and billing backend and prints bills on an OASYS P10 terminal.
 
 ### Modules
 
@@ -18,7 +18,7 @@ OASYS AI Captain is a restaurant system for **Vasamo, South Indian Kitchen (Chen
 | **AI Captian** | Same base | Older version of The Captian. To be merged in and archived |
 | **Stock Management** | Express 5 + Knex + React, SQLite/Postgres | Ingredients, recipes, purchases and GST billing. Selling a dish deducts its stock |
 | **Menue Card** | React + react-pageflip + Three.js | Guest-facing menu book with 203 dishes. The source of the menu data |
-| **Vasamo Print** | Android (Gradle, JDK 17) | Takes bills from Stock Management over Bluetooth LE and prints them on the P10 |
+| **Oasys Restaurant Print** | Android (Gradle, JDK 17) | Takes bills from Stock Management over Bluetooth LE and prints them on the P10 |
 
 ### End-to-end flow
 

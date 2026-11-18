@@ -1,7 +1,7 @@
 // Dietary and allergen tags for every dish in menu.js (F3).
 //
 // ⚠️ DRAFT, NOT SIGNED OFF. These tags were drafted from typical Chennai
-// restaurant recipes, not from Vasamo's kitchen. Every row must be checked by
+// restaurant recipes, not from Oasys Restaurant's kitchen. Every row must be checked by
 // the restaurant owner / head chef before guests can filter on it (plan: D3).
 // Run `node scripts/check-dietary.mjs` to validate coverage and write the
 // review sheet (dietary-review.csv) for sign-off.

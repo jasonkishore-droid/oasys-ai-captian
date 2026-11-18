@@ -4,6 +4,7 @@
 import { round2, computeTotals } from './billing.js'
 import { EMAIL_RE, sendBillEmail } from './email.js'
 import { InventoryError } from './store.js'
+import { photoOf } from './waiter.js'
 
 // ---- forgiving name matching: "two masala dosas", "chicken briyani", "filter kaapi" ----
 const norm = (s) =>
@@ -289,7 +290,7 @@ export function inventoryApi(store, config, tabs = null, dietary = null) {
           table_no: s.table_no, customer: text(body.customer, 120, 'customer') || s.customer, customer_phone: null, customer_email: email,
           order_type: 'dine_in', payment_mode,
         },
-        { source: sourceOf(body.source), tab: true }
+        { source: sourceOf(body.source), tab: true, taken: t.takenFor(s.id) }
       )
       const bill = store.getBill(id)
       return ok({ ok: true, bill, tab: tabView(t.close(s.id, { payment_mode, bill_id: id, bill_no: bill.bill_no })) }, 201)
@@ -305,14 +306,32 @@ export function inventoryApi(store, config, tabs = null, dietary = null) {
     },
 
     // the kitchen feed for tabs: each round as it is ordered, with its table
-    // the Kitchen Display Screen: its tickets, and moving one through its stages ({ id, status: 'new' | 'preparing' | 'ready' | 'served' })
+    // the Kitchen Display Screen: its tickets, and moving one through its stages ({ id, status: 'new' | 'preparing' | 'ready' | 'on_the_way' | 'served' })
     kitchenBoard: () => ok(needTabs().board()),
     kitchenStatus(body = {}) {
       const id = Number(body.id)
       if (!Number.isInteger(id) || id < 1) bad('id must be a ticket number')
-      if (!['new', 'preparing', 'ready', 'served'].includes(body.status)) bad("status must be 'new', 'preparing', 'ready' or 'served'")
-      needTabs().setKitchenStatus(id, body.status)
-      return ok({ ok: true })
+      if (!['new', 'preparing', 'ready', 'on_the_way', 'served'].includes(body.status)) bad("status must be 'new', 'preparing', 'ready', 'on_the_way' or 'served'")
+      // a waiter collecting a ready order sends their name and picture with "on_the_way", so the guest's tablet can say who is coming
+      const t = needTabs()
+      const round = t.roundForStock(id) || (() => { throw new InventoryError(404, 'Ticket not found') })()
+      // stock moves with the kitchen: Preparing (or any later stage, if Preparing was skipped) takes the recipe ingredients
+      // off the shelf now; recalling the ticket to New puts them back. The till does not take them a second time.
+      let stock = 'unchanged'
+      const what = `Round ${round.round_no}${round.table_no ? ` · ${round.table_no}` : ''}`
+      if (body.status === 'new') {
+        if (round.stock_taken) {
+          store.roundStock(round.items, { roundId: id, note: what, reverse: true })
+          t.setStockTaken(id, false)
+          stock = 'returned'
+        }
+      } else if (!round.stock_taken) {
+        store.roundStock(round.items, { roundId: id, note: what })
+        t.setStockTaken(id, true)
+        stock = 'taken'
+      }
+      t.setKitchenStatus(id, body.status, text(body.by, 40, 'by'), photoOf(body.photo))
+      return ok({ ok: true, stock })
     },
     kitchen: (query = {}) => ok(needTabs().roundsSince(Math.max(0, Number(query.since_id) || 0))),
 

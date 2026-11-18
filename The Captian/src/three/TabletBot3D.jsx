@@ -121,7 +121,7 @@ function canvasTexture(w, h, draw) {
   return t
 }
 
-// `bill` (an Vasamo order, at any stage) is shown on the screen itself: the
+// `bill` (an Oasys Restaurant order, at any stage) is shown on the screen itself: the
 // face slides left and shrinks, the panel fades in on the right. Every stage is drawn there (confirm, placed + e-receipt email,
 // confirm address, sent, problem, cancelled) and its buttons can be tapped on
 // the screen: onOrderAction(tool, args) runs the same tool as saying it,
@@ -133,6 +133,7 @@ export default function TabletBot3D({ mood = 'idle', speaking = false, busy = fa
   const props = useRef({})
   props.current = { mood, speaking, busy, levelRef, lookRef, eyeColor, faceColor, bill, onOrderAction, onClose, theme }
   const inputRef = useRef(null) // the hidden field that takes typing for the on-screen email box
+  const closeAsk = useRef(null) // { for: order }: "Close your tab?" is being asked for this round's card
 
   // a new order resets the email box to what the order already has
   useEffect(() => {
@@ -651,6 +652,20 @@ export default function TabletBot3D({ mood = 'idle', speaking = false, busy = fa
         y += 26
         line('Nothing was sent to the kitchen.', '', { alpha: 0.7 })
         actions([close])
+      } else if (order.stage === 'added' && closeAsk.current?.for === order) {
+        // Close tab, step 2: are you sure? Yes goes on to "How will you pay?"
+        line('Close your tab?', '', { size: 17, weight: 700, alpha: 1 })
+        y += 26
+        line(`Round ${order.round || 1}${where}`, '', { alpha: 0.65 })
+        y += 28
+        rule(false)
+        line('Tab so far', rupees(order.tab_total), { size: 15, weight: 700, alpha: 1 })
+        y += 24
+        para('You will not be able to order more once it is closed. Next, choose how to pay.', { maxLines: 3 })
+        actions([
+          { label: 'Yes, close tab', busyLabel: 'Opening…', primary: true, run: act('close_tab', {}) },
+          { label: 'Not yet', run: () => { closeAsk.current = null }, act: false },
+        ])
       } else if (order.stage === 'added') {
         // a round went on the tab and to the kitchen; the tab stays open
         line('✓ Sent to the kitchen', '', { size: 17, weight: 700, alpha: 1 })
@@ -664,6 +679,7 @@ export default function TabletBot3D({ mood = 'idle', speaking = false, busy = fa
         y += 16 // room for the hint
         const by = actions([
           { label: 'See tab', run: act('view_tab', {}) },
+          { label: 'Close tab', primary: true, run: () => { closeAsk.current = { for: order } }, act: false },
           close,
         ])
         hint('Order more anytime. Say “close the tab” to pay.', by)

@@ -268,7 +268,7 @@ public class MainActivity extends Activity implements Tabs.Host {
         startActivityForResult(new Intent(Intent.ACTION_CREATE_DOCUMENT)
                 .addCategory(Intent.CATEGORY_OPENABLE)
                 .setType("text/plain")
-                .putExtra(Intent.EXTRA_TITLE, "vasamo-print-log.txt"), REQUEST_EXPORT);
+                .putExtra(Intent.EXTRA_TITLE, "oasys-print-log.txt"), REQUEST_EXPORT);
     }
 
     @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
@@ -310,7 +310,7 @@ public class MainActivity extends Activity implements Tabs.Host {
         LinearLayout box = Ui.column(this);
         int p = Ui.dp(this, 16);
         box.setPadding(p, p, p, p);
-        box.addView(Ui.title(this, "Set up Vasamo Print"));
+        box.addView(Ui.title(this, "Set up Oasys Restaurant Print"));
         box.addView(Ui.muted(this, "Check each item once. It only takes a minute."));
 
         boolean bluetooth = bluetoothOn();

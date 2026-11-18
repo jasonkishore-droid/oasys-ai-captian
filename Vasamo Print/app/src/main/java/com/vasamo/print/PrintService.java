@@ -232,7 +232,7 @@ public class PrintService extends Service {
         PendingIntent open = PendingIntent.getActivity(this, 0, new Intent(this, MainActivity.class), PendingIntent.FLAG_IMMUTABLE);
         return new Notification.Builder(this, CHANNEL)
                 .setSmallIcon(R.drawable.ic_printer)
-                .setContentTitle("Vasamo Print")
+                .setContentTitle("Oasys Restaurant Print")
                 .setContentText(Ui.statusTitle(state))
                 .setContentIntent(open)
                 .setOngoing(true)

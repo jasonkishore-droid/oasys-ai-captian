@@ -20,7 +20,10 @@
 //   Call waiter (server/inventory/waiter.js; needs only the tabs database, not the till's):
 //   POST /api/oasys/waiter/call { table_no, reason?, note? }   GET /api/oasys/waiter?table_no=
 //   POST /api/oasys/waiter/cancel { id } | { table_no }   GET /api/oasys/waiter/calls (staff screen)
-//   POST /api/oasys/waiter/ack { id, by? }   POST /api/oasys/waiter/done { id }
+//   POST /api/oasys/waiter/ack { id, by? }   POST /api/oasys/waiter/arrive { id, by? }   POST /api/oasys/waiter/done { id }
+//   POST /api/oasys/waiter/photo { name?, photo }   saves a waiter's profile picture in assets/waiters/ and returns { url }
+//   GET  /assets/waiters/<file>                    that picture
+//   Waiter accounts (server/inventory/waiters.js): POST /api/oasys/waiters/login { username, password }, GET|PUT /api/oasys/waiters/me, POST /api/oasys/waiters/logout
 //   Feedback after payment (server/inventory/feedback.js; tabs database only):
 //   POST /api/oasys/feedback { bill_no, rating, liked?, improve?, comment? }   GET /api/oasys/feedback?since_id=&limit=
 import { inventoryConfig } from './inventory/config.js'
@@ -28,21 +31,23 @@ import { inventoryApi } from './inventory/orders.js'
 import { openStore } from './inventory/store.js'
 import { openTabs } from './inventory/tabs.js'
 import { waiterApi } from './inventory/waiter.js'
+import { waitersApi } from './inventory/waiters.js'
 import { feedbackApi } from './inventory/feedback.js'
 import { dietarySource } from './inventory/dietary.js'
+import { PHOTO_URL_PREFIX, readPhoto, savePhoto } from './waiterPhotos.js'
 
 const LOCAL = /^\/api\/oasys\/(ping|menu|upi|orders|orders\/email|tab|tab\/add|tab\/close|tab\/cancel|kitchen|kitchen\/board|kitchen\/status)$/
-const WAITER = /^\/api\/oasys\/waiter(?:\/(call|cancel|calls|ack|done))?$/
+const WAITER = /^\/api\/oasys\/waiter(?:\/(call|cancel|calls|ack|arrive|release|done))?$/
 const FEEDBACK = /^\/api\/oasys\/feedback$/
 const PRINT = /^\/api\/oasys\/(printer|print-test|print-receipt|print-jobs\/\d+)$/
 
-function readBody(req) {
+function readBody(req, max = 20_000) {
   return new Promise((resolve, reject) => {
     const chunks = []
     let size = 0
     req.on('data', (c) => {
       size += c.length
-      if (size > 20_000) {
+      if (size > max) {
         reject(Object.assign(new Error('Body too large'), { status: 413 }))
         req.destroy()
       } else chunks.push(c)
@@ -60,6 +65,8 @@ export function oasysRoutes(env) {
   const getTabs = () => (tabs ??= openTabs(config.tabsFile))
   const getApi = () => (api ??= inventoryApi(openStore(config), config, getTabs(), dietarySource(config.menuCardDir))) // opened on first use
   const getWaiter = () => (waiter ??= waiterApi(getTabs())) // works without the till's database
+  let waiters
+  const getWaiters = () => (waiters ??= waitersApi(getTabs()))
   let feedback = null
   const getFeedback = () => (feedback ??= feedbackApi(getTabs()))
 
@@ -119,21 +126,61 @@ export function oasysRoutes(env) {
 
   return async (req, res, next) => {
     const u = new URL(req.url || '', 'http://x')
+    // a waiter's saved profile picture
+    if (req.method === 'GET' && u.pathname.startsWith(PHOTO_URL_PREFIX)) {
+      const p = readPhoto(u.pathname.slice(PHOTO_URL_PREFIX.length))
+      if (!p) return send(res, 404, { error: 'Not found' })
+      res.statusCode = 200
+      res.setHeader('Content-Type', p.type)
+      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable') // the file name carries a hash of the picture
+      return res.end(p.bytes)
+    }
     if (!u.pathname.startsWith('/api/oasys/')) return next()
     const query = Object.fromEntries(u.searchParams)
     if (req.method === 'GET' && u.pathname === '/api/oasys/menu/stream') return watchMenu(req, res)
     if (req.method === 'GET' && u.pathname === '/api/oasys/kitchen/stream') return watchKitchen(req, res)
     if (req.method === 'GET' && u.pathname === '/api/oasys/waiter/stream') return watchWaiter(req, res)
     try {
+      // waiter accounts: log in, read or edit the profile, log out. The profile calls need the token from login.
+      const wa = u.pathname.match(/^\/api\/oasys\/waiters\/(login|me|logout)$/)
+      if (wa) {
+        const what = wa[1]
+        const method = req.method
+        const allowed = { login: ['POST'], me: ['GET', 'PUT'], logout: ['POST'] }[what]
+        if (!allowed.includes(method)) return send(res, 405, { error: `Use ${allowed.join(' or ')}` })
+        const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '')
+        let body = {}
+        if (method !== 'GET') {
+          try {
+            body = JSON.parse((await readBody(req)) || '{}')
+          } catch (e) {
+            if (e.status) throw e
+            return send(res, 400, { error: 'Request body is not valid JSON' })
+          }
+        }
+        const a = getWaiters()
+        const r = what === 'login' ? a.login(body) : what === 'logout' ? a.logout(token) : method === 'PUT' ? a.update(token, body) : a.me(token)
+        return send(res, r.status, r.body)
+      }
+      if (req.method === 'POST' && u.pathname === '/api/oasys/waiter/photo') {
+        let body
+        try {
+          body = JSON.parse((await readBody(req, 80_000)) || '{}')
+        } catch (e) {
+          if (e.status) throw e
+          return send(res, 400, { error: 'Request body is not valid JSON' })
+        }
+        return send(res, 201, { ok: true, ...savePhoto(body) })
+      }
       const w = u.pathname.match(WAITER)
       if (w) {
         const what = w[1] || 'status'
         const post = req.method === 'POST'
-        if (post !== ['call', 'cancel', 'ack', 'done'].includes(what)) return send(res, 405, { error: post ? 'Use GET' : 'Use POST' })
+        if (post !== ['call', 'cancel', 'ack', 'arrive', 'release', 'done'].includes(what)) return send(res, 405, { error: post ? 'Use GET' : 'Use POST' })
         let body = {}
         if (post) {
           try {
-            body = JSON.parse((await readBody(req)) || '{}')
+            body = JSON.parse((await readBody(req, 80_000)) || '{}') // room for the waiter's small profile picture on "ack"
           } catch (e) {
             if (e.status) throw e
             return send(res, 400, { error: 'Request body is not valid JSON' })

@@ -1,4 +1,4 @@
-// The animated picture for each ticket stage (pot with steam, bell, plate with a tick, recall arrow). The animations are
+// The animated picture for each ticket stage (pot with steam, bell, a dish on its way, plate with a tick, recall arrow). The animations are
 // in kds.css (.ico-*). Used by the tablet's order-status toasts.
 export function StageIcon({ stage }) {
   const p = { width: 28, height: 28, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': true }
@@ -22,6 +22,21 @@ export function StageIcon({ stage }) {
           <path d="M6 16a6 6 0 0 1 12 0z" />
           <path d="M12 7V5M10 5h4" />
           <path d="M4 19h16" />
+        </g>
+      </svg>
+    )
+  }
+  if (stage === 'on_the_way') {
+    // a covered dish on its way, with speed lines behind it
+    return (
+      <svg {...p} className="ico ico-on_the_way">
+        <g className="lines">
+          <path d="M2 11h3M1 14.5h4" />
+        </g>
+        <g className="go">
+          <path d="M7 18h14" />
+          <path d="M9 18a5 5 0 0 1 10 0" />
+          <path d="M14 11.5V10" />
         </g>
       </svg>
     )

@@ -43,7 +43,7 @@ function Sales({ from, to }) {
   if (q.loading && !q.data) return <Loading />;
   if (q.error) return <Alert>{q.error}</Alert>;
   const { summary: s, by_day, by_payment, by_order_type, by_section } = q.data;
-  const exportDays = () => downloadCsv(`vasamo-sales-${fileRange(from, to)}.csv`, by_day, [
+  const exportDays = () => downloadCsv(`oasys-sales-${fileRange(from, to)}.csv`, by_day, [
     { label: 'Date', value: (d) => d.date }, { label: 'Bills', value: (d) => d.bills },
     { label: 'Net sales (₹)', value: (d) => d.net }, { label: 'Collected incl. GST (₹)', value: (d) => d.total },
     { label: 'Food cost (₹)', value: (d) => d.food_cost },
@@ -115,7 +115,7 @@ function Dishes({ from, to }) {
   const rows = useMemo(() => [...(q.data?.dishes || [])].sort((a, b) => (sort === 'cost_pct' ? (b.food_cost_pct ?? 0) - (a.food_cost_pct ?? 0) : b[sort] - a[sort])), [q.data, sort]);
   if (q.loading && !q.data) return <Loading />;
   if (q.error) return <Alert>{q.error}</Alert>;
-  const exportCsv = () => downloadCsv(`vasamo-dish-sales-${fileRange(from, to)}.csv`, rows, [
+  const exportCsv = () => downloadCsv(`oasys-dish-sales-${fileRange(from, to)}.csv`, rows, [
     { label: 'Dish', value: (d) => d.name }, { label: 'Section', value: (d) => d.section }, { label: 'Portions', value: (d) => d.quantity },
     { label: 'Revenue (₹)', value: (d) => d.revenue }, { label: 'Recipe cost (₹)', value: (d) => d.cost }, { label: 'Margin (₹)', value: (d) => d.margin },
     { label: 'Food cost %', value: (d) => d.food_cost_pct },
@@ -158,7 +158,7 @@ function StockRecon({ from, to }) {
   if (q.error) return <Alert>{q.error}</Alert>;
   const { rows, totals } = q.data;
   const shown = onlyMoved ? rows.filter((r) => r.purchased || r.consumed || r.wasted || r.adjusted) : rows;
-  const exportCsv = () => downloadCsv(`vasamo-stock-reconciliation-${fileRange(from, to)}.csv`, rows, [
+  const exportCsv = () => downloadCsv(`oasys-stock-reconciliation-${fileRange(from, to)}.csv`, rows, [
     { label: 'Ingredient', value: (r) => r.name }, { label: 'Category', value: (r) => r.category }, { label: 'Unit', value: (r) => r.unit },
     { label: 'Opening', value: (r) => r.opening }, { label: 'Purchased', value: (r) => r.purchased }, { label: 'Consumed (sales)', value: (r) => r.consumed },
     { label: 'Wasted', value: (r) => r.wasted }, { label: 'Adjusted / count variance', value: (r) => r.adjusted }, { label: 'Closing', value: (r) => r.closing },
@@ -211,7 +211,7 @@ function Ledger({ from, to }) {
   const q = useLoad(() => api.movements({ type, from, to, limit: 500 }), [type, from, to]);
   const rows = q.data || [];
   const value = rows.reduce((s, m) => s + m.value, 0);
-  const exportCsv = () => downloadCsv(`vasamo-${type}-${fileRange(from, to)}.csv`, rows, [
+  const exportCsv = () => downloadCsv(`oasys-${type}-${fileRange(from, to)}.csv`, rows, [
     { label: 'When', value: (m) => m.created_at }, { label: 'Ingredient', value: (m) => m.ingredient }, { label: 'Change', value: (m) => m.quantity },
     { label: 'Unit', value: (m) => m.unit }, { label: 'Value (₹)', value: (m) => m.value }, { label: 'Note', value: (m) => m.note }, { label: 'By', value: (m) => m.user },
   ]);

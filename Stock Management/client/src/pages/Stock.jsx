@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { api } from '../api';
-import { useApp, useLoad, useToast, can, Stat, StatusBadge, LevelBar, Modal, Alert, Loading, Empty, Field, Segmented } from '../ui.jsx';
+import { useApp, useLoad, useLiveStock, useToast, can, Stat, StatusBadge, LevelBar, Modal, Alert, Loading, Empty, Field, Segmented } from '../ui.jsx';
 import { money, moneyShort, qty, shortDate, dateTime, MOVEMENT_LABEL, downloadCsv } from '../format';
 
 const FILTERS = [['all', 'All'], ['low', 'Low / out'], ['expiring', 'Expiring'], ['negative', 'Negative']];
@@ -9,6 +9,7 @@ export default function Stock() {
   const { user, settings } = useApp();
   const manager = can(user, 'manager');
   const q = useLoad(() => Promise.all([api.ingredients(), api.suppliers()]));
+  useLiveStock(q.refresh); // stays up to date when stock changes, including from the kitchen
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('');
   const [filter, setFilter] = useState('all');
@@ -39,7 +40,7 @@ export default function Stock() {
     });
   }, [items, search, category, filter]);
 
-  const exportCsv = () => downloadCsv(`vasamo-stock-${settings.business_date}.csv`, visible, [
+  const exportCsv = () => downloadCsv(`oasys-stock-${settings.business_date}.csv`, visible, [
     { label: 'Ingredient', value: (i) => i.name }, { label: 'Category', value: (i) => i.category },
     { label: 'On hand', value: (i) => i.quantity }, { label: 'Unit', value: (i) => i.unit },
     { label: 'Par', value: (i) => i.par_level }, { label: 'Reorder qty', value: (i) => i.reorder_qty },

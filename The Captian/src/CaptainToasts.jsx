@@ -4,21 +4,27 @@ import { StageIcon } from './kds/StageIcon.jsx'
 const SHOW_MS = 6000 // how long a toast stays
 
 // Toasts on the guest's tablet, in The Captain's card look. Two kinds:
-//   { kind: 'waiter', title, line }                      a waiter answered the table's call (an animated bell)
-//   { kind: 'preparing' | 'ready' | 'served', title, line }   the kitchen moved this table's order on (the stage's own animation)
+//   { kind: 'waiter', title, line, photo? }              a waiter answered the table's call (their picture, or an animated bell)
+//   { kind: 'preparing' | 'ready' | 'on_the_way' | 'served', title, line }   the kitchen moved this table's order on (the stage's own animation)
 // push(toast) shows one (at most three at a time); drop(id) removes it; tapping a toast dismisses it.
+// A toast with a `group` replaces the one already showing from that group: the waiter's "on the way" and "finding another
+// waiter" are about the same call, so only the latest is ever on screen.
 export function useCaptainToasts() {
   const [toasts, setToasts] = useState([])
   const timers = useRef(new Map())
+  const shown = useRef([]) // the toasts on screen now, to find the one a new toast replaces
   const drop = useCallback((id) => {
     clearTimeout(timers.current.get(id))
     timers.current.delete(id)
+    shown.current = shown.current.filter((x) => x.id !== id)
     setToasts((t) => t.filter((x) => x.id !== id))
   }, [])
   const push = useCallback(
     (toast) => {
+      if (toast.group) shown.current.filter((x) => x.group === toast.group).forEach((x) => drop(x.id))
       const id = `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
-      setToasts((t) => [...t.slice(-2), { ...toast, id }])
+      shown.current = [...shown.current.filter((x) => !toast.group || x.group !== toast.group).slice(-2), { ...toast, id }]
+      setToasts((t) => [...t.filter((x) => !toast.group || x.group !== toast.group).slice(-2), { ...toast, id }])
       timers.current.set(id, setTimeout(() => drop(id), SHOW_MS))
       return id
     },
@@ -43,10 +49,10 @@ export default function CaptainToasts({ toasts, onDrop }) {
   return (
     <div className="cap-toasts" role="status" aria-live="polite">
       {toasts.map((t) => (
-        <button key={t.id} type="button" className="cap-toast" data-kind={t.kind} style={{ '--show': `${SHOW_MS}ms` }} onClick={() => onDrop(t.id)} aria-label={`${t.title}. Dismiss`}>
+        <button key={t.id} type="button" className="cap-toast" data-kind={t.kind} data-photo={t.photo ? 'true' : undefined} style={{ '--show': `${SHOW_MS}ms` }} onClick={() => onDrop(t.id)} aria-label={`${t.title}. Dismiss`}>
           <span className="cap-toast-icon">
             <i className="ripple" aria-hidden="true" />
-            {t.kind === 'waiter' ? <BellIcon /> : <StageIcon stage={t.kind} />}
+            {t.photo ? <img className="cap-toast-photo" src={t.photo} alt="" /> : t.kind === 'waiter' ? <BellIcon /> : <StageIcon stage={t.kind} />}
           </span>
           <span className="cap-toast-text">
             <strong>{t.title}</strong>

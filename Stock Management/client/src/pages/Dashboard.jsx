@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { api } from '../api';
-import { useApp, useLoad, can, Stat, StatusBadge, LevelBar, DietMark, Alert, Loading, Empty } from '../ui.jsx';
+import { useApp, useLoad, useLiveStock, can, Stat, StatusBadge, LevelBar, DietMark, Alert, Loading, Empty } from '../ui.jsx';
 import { money, moneyShort, pct, qty, shortDate, weekday, time } from '../format';
 
 export default function Dashboard() {
   const { user, go } = useApp();
-  const { data, error, loading, reload } = useLoad(() => api.dashboard());
+  const { data, error, loading, reload, refresh } = useLoad(() => api.dashboard());
+  useLiveStock(refresh);
   if (loading && !data) return <Loading />;
   if (error && !data) return <Alert>{error} <button className="link" onClick={reload}>Retry</button></Alert>;
 

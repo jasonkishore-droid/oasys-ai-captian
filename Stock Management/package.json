@@ -1,0 +1,20 @@
+{
+  "name": "vasamo-stock",
+  "private": true,
+  "description": "Oasys Restaurant: ingredient stock, recipes, purchases and GST billing",
+  "engines": {
+    "node": ">=22.12"
+  },
+  "scripts": {
+    "install:all": "npm install && npm --prefix server install && npm --prefix client install",
+    "menu:import": "node scripts/import-menu.mjs",
+    "setup": "npm --prefix server run db:migrate && npm --prefix server run db:seed",
+    "dev": "concurrently -n api,web -c cyan,magenta \"npm --prefix server run dev\" \"npm --prefix client run dev\"",
+    "build": "npm --prefix client run build",
+    "start": "npm --prefix server start",
+    "test": "npm --prefix server test"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}

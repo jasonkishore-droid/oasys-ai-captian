@@ -1,0 +1,12 @@
+node_modules
+dist
+*.log
+.env
+.env.local
+data/
+sidecar/pretrained/
+__pycache__/
+
+# waiters' profile pictures: personal photos saved by the app, kept out of git
+assets/waiters/*
+!assets/waiters/.gitkeep

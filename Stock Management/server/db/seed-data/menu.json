@@ -1,0 +1,1543 @@
+{
+  "source": "../Menue Card/src/menu.js",
+  "restaurant": {
+    "name": "Oasys Restaurant",
+    "tagline": "South Indian Kitchen",
+    "place": "Chennai"
+  },
+  "sections": [
+    {
+      "name": "Breakfast & Tiffin",
+      "note": "Served with sambar and two chutneys",
+      "sort_order": 1,
+      "dishes": [
+        {
+          "name": "Idli (2 pcs)",
+          "price": 50,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 1
+        },
+        {
+          "name": "Mini Sambar Idli (14 pcs)",
+          "price": 85,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 2
+        },
+        {
+          "name": "Ghee Podi Idli",
+          "price": 95,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 3
+        },
+        {
+          "name": "Rava Idli",
+          "price": 80,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 4
+        },
+        {
+          "name": "Kanchipuram Idli",
+          "price": 85,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 5
+        },
+        {
+          "name": "Thatte Idli",
+          "price": 75,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 6
+        },
+        {
+          "name": "Medu Vada (2 pcs)",
+          "price": 60,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 7
+        },
+        {
+          "name": "Sambar Vada",
+          "price": 75,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 8
+        },
+        {
+          "name": "Rasam Vada",
+          "price": 75,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 9
+        },
+        {
+          "name": "Thayir Vada",
+          "price": 80,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 10
+        },
+        {
+          "name": "Masala Vada (2 pcs)",
+          "price": 60,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 11
+        },
+        {
+          "name": "Ven Pongal",
+          "price": 90,
+          "diet": "veg",
+          "description": "Rice and moong dal with ghee, pepper and cashew",
+          "sort_order": 12
+        },
+        {
+          "name": "Rava Kichadi",
+          "price": 80,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 13
+        },
+        {
+          "name": "Semiya Upma",
+          "price": 75,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 14
+        },
+        {
+          "name": "Idiyappam (3 pcs)",
+          "price": 85,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 15
+        },
+        {
+          "name": "Appam (2 pcs)",
+          "price": 90,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 16
+        },
+        {
+          "name": "Puttu with Kadala Curry",
+          "price": 110,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 17
+        },
+        {
+          "name": "Poori Masala",
+          "price": 95,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 18
+        },
+        {
+          "name": "Chapathi with Kurma",
+          "price": 95,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 19
+        },
+        {
+          "name": "Mini Tiffin",
+          "price": 160,
+          "diet": "veg",
+          "description": "Idli, vada, mini dosa, pongal and kesari",
+          "sort_order": 20
+        }
+      ]
+    },
+    {
+      "name": "Dosa Varieties",
+      "note": "Crisp from the tawa, served with sambar and chutneys",
+      "sort_order": 2,
+      "dishes": [
+        {
+          "name": "Plain Dosa",
+          "price": 80,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 1
+        },
+        {
+          "name": "Masala Dosa",
+          "price": 110,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 2
+        },
+        {
+          "name": "Ghee Roast",
+          "price": 120,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 3
+        },
+        {
+          "name": "Paper Roast",
+          "price": 130,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 4
+        },
+        {
+          "name": "Ghee Podi Roast",
+          "price": 135,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 5
+        },
+        {
+          "name": "Onion Dosa",
+          "price": 110,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 6
+        },
+        {
+          "name": "Rava Dosa",
+          "price": 115,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 7
+        },
+        {
+          "name": "Onion Rava Masala Dosa",
+          "price": 145,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 8
+        },
+        {
+          "name": "Coconut Rava Masala Dosa",
+          "price": 150,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 9
+        },
+        {
+          "name": "Mysore Masala Dosa",
+          "price": 135,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 10
+        },
+        {
+          "name": "Set Dosa (3 pcs)",
+          "price": 100,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 11
+        },
+        {
+          "name": "Kal Dosa (2 pcs)",
+          "price": 85,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 12
+        },
+        {
+          "name": "Pesarattu",
+          "price": 115,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 13
+        },
+        {
+          "name": "Adai Avial",
+          "price": 135,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 14
+        },
+        {
+          "name": "Paneer Dosa",
+          "price": 160,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 15
+        },
+        {
+          "name": "Cheese Dosa",
+          "price": 155,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 16
+        },
+        {
+          "name": "Ragi Dosa",
+          "price": 105,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 17
+        },
+        {
+          "name": "Muttai Dosa",
+          "price": 120,
+          "diet": "egg",
+          "description": null,
+          "sort_order": 18
+        },
+        {
+          "name": "Kari Dosa",
+          "price": 240,
+          "diet": "nonveg",
+          "description": "Stuffed with spiced mutton kheema",
+          "sort_order": 19
+        },
+        {
+          "name": "Chicken Kheema Dosa",
+          "price": 210,
+          "diet": "nonveg",
+          "description": null,
+          "sort_order": 20
+        }
+      ]
+    },
+    {
+      "name": "Uthappam & Paniyaram",
+      "note": null,
+      "sort_order": 3,
+      "dishes": [
+        {
+          "name": "Plain Uthappam",
+          "price": 95,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 1
+        },
+        {
+          "name": "Onion Uthappam",
+          "price": 115,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 2
+        },
+        {
+          "name": "Tomato Uthappam",
+          "price": 115,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 3
+        },
+        {
+          "name": "Mixed Veg Uthappam",
+          "price": 125,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 4
+        },
+        {
+          "name": "Podi Uthappam",
+          "price": 120,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 5
+        },
+        {
+          "name": "Egg Uthappam",
+          "price": 130,
+          "diet": "egg",
+          "description": null,
+          "sort_order": 6
+        },
+        {
+          "name": "Kuzhi Paniyaram",
+          "price": 110,
+          "diet": "veg",
+          "description": "Sweet or kaaram, eight pieces",
+          "sort_order": 7
+        }
+      ]
+    },
+    {
+      "name": "Parotta & Breads",
+      "note": null,
+      "sort_order": 4,
+      "dishes": [
+        {
+          "name": "Parotta (1 pc)",
+          "price": 35,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 1
+        },
+        {
+          "name": "Malabar Parotta (1 pc)",
+          "price": 40,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 2
+        },
+        {
+          "name": "Wheat Parotta (1 pc)",
+          "price": 40,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 3
+        },
+        {
+          "name": "Veg Kothu Parotta",
+          "price": 150,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 4
+        },
+        {
+          "name": "Egg Kothu Parotta",
+          "price": 170,
+          "diet": "egg",
+          "description": null,
+          "sort_order": 5
+        },
+        {
+          "name": "Chicken Kothu Parotta",
+          "price": 220,
+          "diet": "nonveg",
+          "description": null,
+          "sort_order": 6
+        },
+        {
+          "name": "Mutton Kothu Parotta",
+          "price": 280,
+          "diet": "nonveg",
+          "description": null,
+          "sort_order": 7
+        },
+        {
+          "name": "Chilli Parotta",
+          "price": 160,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 8
+        },
+        {
+          "name": "Ceylon Veechu Parotta",
+          "price": 70,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 9
+        },
+        {
+          "name": "Bun Parotta (1 pc)",
+          "price": 45,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 10
+        },
+        {
+          "name": "Egg Lappa",
+          "price": 110,
+          "diet": "egg",
+          "description": null,
+          "sort_order": 11
+        },
+        {
+          "name": "Butter Naan / Garlic Naan",
+          "price": 65,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 12
+        },
+        {
+          "name": "Tandoori Roti / Kulcha",
+          "price": 45,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 13
+        }
+      ]
+    },
+    {
+      "name": "Vegetarian Starters",
+      "note": null,
+      "sort_order": 5,
+      "dishes": [
+        {
+          "name": "Gobi 65",
+          "price": 190,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 1
+        },
+        {
+          "name": "Gobi Manchurian",
+          "price": 200,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 2
+        },
+        {
+          "name": "Paneer 65",
+          "price": 240,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 3
+        },
+        {
+          "name": "Pepper Mushroom",
+          "price": 230,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 4
+        },
+        {
+          "name": "Baby Corn Fry",
+          "price": 210,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 5
+        },
+        {
+          "name": "Chilli Paneer",
+          "price": 250,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 6
+        },
+        {
+          "name": "Vazhaipoo Vada",
+          "price": 140,
+          "diet": "veg",
+          "description": "Banana flower fritters",
+          "sort_order": 7
+        },
+        {
+          "name": "Onion Pakoda",
+          "price": 110,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 8
+        },
+        {
+          "name": "Bajji Platter",
+          "price": 120,
+          "diet": "veg",
+          "description": "Raw banana, chilli and potato",
+          "sort_order": 9
+        }
+      ]
+    },
+    {
+      "name": "Chicken Starters",
+      "note": "Chettinad kitchen and tandoor",
+      "sort_order": 6,
+      "dishes": [
+        {
+          "name": "Chicken 65",
+          "price": 260,
+          "diet": "nonveg",
+          "description": null,
+          "sort_order": 1
+        },
+        {
+          "name": "Chicken Lollipop (6 pcs)",
+          "price": 290,
+          "diet": "nonveg",
+          "description": null,
+          "sort_order": 2
+        },
+        {
+          "name": "Pepper Chicken Dry",
+          "price": 280,
+          "diet": "nonveg",
+          "description": null,
+          "sort_order": 3
+        },
+        {
+          "name": "Chicken Chukka",
+          "price": 290,
+          "diet": "nonveg",
+          "description": null,
+          "sort_order": 4
+        },
+        {
+          "name": "Chilli Chicken",
+          "price": 270,
+          "diet": "nonveg",
+          "description": null,
+          "sort_order": 5
+        },
+        {
+          "name": "Chicken Pallipalayam",
+          "price": 290,
+          "diet": "nonveg",
+          "description": null,
+          "sort_order": 6
+        },
+        {
+          "name": "Nattu Kozhi Varuval",
+          "price": 360,
+          "diet": "nonveg",
+          "description": "Country chicken fry",
+          "sort_order": 7
+        },
+        {
+          "name": "Tandoori Chicken (Half)",
+          "price": 320,
+          "diet": "nonveg",
+          "description": null,
+          "sort_order": 8
+        },
+        {
+          "name": "Tandoori Chicken (Full)",
+          "price": 590,
+          "diet": "nonveg",
+          "description": null,
+          "sort_order": 9
+        },
+        {
+          "name": "Tandoori Pepper Chicken",
+          "price": 340,
+          "diet": "nonveg",
+          "description": null,
+          "sort_order": 10
+        },
+        {
+          "name": "Chicken Tikka",
+          "price": 310,
+          "diet": "nonveg",
+          "description": null,
+          "sort_order": 11
+        },
+        {
+          "name": "Grilled Chicken Al Faham (Half)",
+          "price": 340,
+          "diet": "nonveg",
+          "description": null,
+          "sort_order": 12
+        },
+        {
+          "name": "Pepper BBQ Chicken",
+          "price": 350,
+          "diet": "nonveg",
+          "description": null,
+          "sort_order": 13
+        },
+        {
+          "name": "Tandoori Platter",
+          "price": 790,
+          "diet": "nonveg",
+          "description": "Chicken, fish and prawn from the tandoor",
+          "sort_order": 14
+        },
+        {
+          "name": "Kaadai Roast",
+          "price": 320,
+          "diet": "nonveg",
+          "description": "Quail roasted with Chettinad spices",
+          "sort_order": 15
+        }
+      ]
+    },
+    {
+      "name": "Mutton Starters",
+      "note": null,
+      "sort_order": 7,
+      "dishes": [
+        {
+          "name": "Mutton Chukka",
+          "price": 390,
+          "diet": "nonveg",
+          "description": null,
+          "sort_order": 1
+        },
+        {
+          "name": "Mutton Pepper Fry",
+          "price": 400,
+          "diet": "nonveg",
+          "description": null,
+          "sort_order": 2
+        },
+        {
+          "name": "Kola Urundai (6 pcs)",
+          "price": 320,
+          "diet": "nonveg",
+          "description": "Fried minced mutton balls",
+          "sort_order": 3
+        },
+        {
+          "name": "Mutton Brain Fry",
+          "price": 340,
+          "diet": "nonveg",
+          "description": null,
+          "sort_order": 4
+        },
+        {
+          "name": "Mutton Liver Fry",
+          "price": 310,
+          "diet": "nonveg",
+          "description": null,
+          "sort_order": 5
+        },
+        {
+          "name": "Mutton Raan",
+          "price": 1450,
+          "diet": "nonveg",
+          "description": "Slow-roasted whole leg, serves three to four",
+          "sort_order": 6
+        }
+      ]
+    },
+    {
+      "name": "From the Sea",
+      "note": "Fresh catch, subject to availability",
+      "sort_order": 8,
+      "dishes": [
+        {
+          "name": "Vanjaram Tawa Fry (1 slice)",
+          "price": 450,
+          "diet": "nonveg",
+          "description": "Seer fish",
+          "sort_order": 1
+        },
+        {
+          "name": "Fish 65",
+          "price": 320,
+          "diet": "nonveg",
+          "description": null,
+          "sort_order": 2
+        },
+        {
+          "name": "Fish Finger",
+          "price": 330,
+          "diet": "nonveg",
+          "description": null,
+          "sort_order": 3
+        },
+        {
+          "name": "Nethili Fry",
+          "price": 280,
+          "diet": "nonveg",
+          "description": "Crisp anchovies",
+          "sort_order": 4
+        },
+        {
+          "name": "Pomfret Fry",
+          "price": 520,
+          "diet": "nonveg",
+          "description": null,
+          "sort_order": 5
+        },
+        {
+          "name": "Prawn 65",
+          "price": 390,
+          "diet": "nonveg",
+          "description": null,
+          "sort_order": 6
+        },
+        {
+          "name": "Golden Fried Prawns",
+          "price": 420,
+          "diet": "nonveg",
+          "description": null,
+          "sort_order": 7
+        },
+        {
+          "name": "Prawn Pepper Fry",
+          "price": 410,
+          "diet": "nonveg",
+          "description": null,
+          "sort_order": 8
+        },
+        {
+          "name": "Chettinad Crab Roast",
+          "price": 480,
+          "diet": "nonveg",
+          "description": null,
+          "sort_order": 9
+        },
+        {
+          "name": "Crab Lollipop (4 pcs)",
+          "price": 420,
+          "diet": "nonveg",
+          "description": null,
+          "sort_order": 10
+        },
+        {
+          "name": "Kanava Fry",
+          "price": 340,
+          "diet": "nonveg",
+          "description": "Squid",
+          "sort_order": 11
+        },
+        {
+          "name": "Karimeen Pollichathu",
+          "price": 540,
+          "diet": "nonveg",
+          "description": "Pearl spot grilled in banana leaf",
+          "sort_order": 12
+        },
+        {
+          "name": "Tandoori Pomfret",
+          "price": 560,
+          "diet": "nonveg",
+          "description": null,
+          "sort_order": 13
+        },
+        {
+          "name": "Jumbo Seafood Platter",
+          "price": 1650,
+          "diet": "nonveg",
+          "description": "Fish, prawn, crab and squid, serves three",
+          "sort_order": 14
+        }
+      ]
+    },
+    {
+      "name": "Egg Dishes",
+      "note": null,
+      "sort_order": 9,
+      "dishes": [
+        {
+          "name": "Omelette",
+          "price": 60,
+          "diet": "egg",
+          "description": null,
+          "sort_order": 1
+        },
+        {
+          "name": "Kalakki",
+          "price": 50,
+          "diet": "egg",
+          "description": null,
+          "sort_order": 2
+        },
+        {
+          "name": "Half Boil",
+          "price": 40,
+          "diet": "egg",
+          "description": null,
+          "sort_order": 3
+        },
+        {
+          "name": "Egg Podimas",
+          "price": 90,
+          "diet": "egg",
+          "description": null,
+          "sort_order": 4
+        },
+        {
+          "name": "Egg Masala",
+          "price": 140,
+          "diet": "egg",
+          "description": null,
+          "sort_order": 5
+        },
+        {
+          "name": "Egg Curry",
+          "price": 150,
+          "diet": "egg",
+          "description": null,
+          "sort_order": 6
+        }
+      ]
+    },
+    {
+      "name": "Vegetarian Gravies",
+      "note": null,
+      "sort_order": 10,
+      "dishes": [
+        {
+          "name": "Veg Kurma",
+          "price": 180,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 1
+        },
+        {
+          "name": "Paneer Butter Masala",
+          "price": 260,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 2
+        },
+        {
+          "name": "Kadai Paneer",
+          "price": 260,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 3
+        },
+        {
+          "name": "Mushroom Chettinad",
+          "price": 240,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 4
+        },
+        {
+          "name": "Kadai Vegetable",
+          "price": 210,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 5
+        },
+        {
+          "name": "Dal Tadka",
+          "price": 170,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 6
+        },
+        {
+          "name": "Ennai Kathirikai",
+          "price": 200,
+          "diet": "veg",
+          "description": "Baby brinjal in tamarind gravy",
+          "sort_order": 7
+        },
+        {
+          "name": "Kerala Veg Stew",
+          "price": 200,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 8
+        },
+        {
+          "name": "Channa Masala",
+          "price": 190,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 9
+        },
+        {
+          "name": "Aloo Gobi",
+          "price": 190,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 10
+        }
+      ]
+    },
+    {
+      "name": "Non-Vegetarian Gravies",
+      "note": null,
+      "sort_order": 11,
+      "dishes": [
+        {
+          "name": "Chicken Chettinad",
+          "price": 290,
+          "diet": "nonveg",
+          "description": null,
+          "sort_order": 1
+        },
+        {
+          "name": "Pepper Chicken Gravy",
+          "price": 290,
+          "diet": "nonveg",
+          "description": null,
+          "sort_order": 2
+        },
+        {
+          "name": "Butter Chicken",
+          "price": 310,
+          "diet": "nonveg",
+          "description": null,
+          "sort_order": 3
+        },
+        {
+          "name": "Chicken Tikka Masala",
+          "price": 320,
+          "diet": "nonveg",
+          "description": null,
+          "sort_order": 4
+        },
+        {
+          "name": "Nattu Kozhi Kuzhambu",
+          "price": 370,
+          "diet": "nonveg",
+          "description": null,
+          "sort_order": 5
+        },
+        {
+          "name": "Mutton Chettinad",
+          "price": 410,
+          "diet": "nonveg",
+          "description": null,
+          "sort_order": 6
+        },
+        {
+          "name": "Mutton Kurma",
+          "price": 400,
+          "diet": "nonveg",
+          "description": null,
+          "sort_order": 7
+        },
+        {
+          "name": "Meen Kuzhambu",
+          "price": 320,
+          "diet": "nonveg",
+          "description": "Tamarind fish curry",
+          "sort_order": 8
+        },
+        {
+          "name": "Kerala Fish Moilee",
+          "price": 360,
+          "diet": "nonveg",
+          "description": null,
+          "sort_order": 9
+        },
+        {
+          "name": "Prawn Thokku",
+          "price": 420,
+          "diet": "nonveg",
+          "description": null,
+          "sort_order": 10
+        },
+        {
+          "name": "Nandu Kuzhambu",
+          "price": 450,
+          "diet": "nonveg",
+          "description": "Crab curry",
+          "sort_order": 11
+        },
+        {
+          "name": "Chicken Salna",
+          "price": 90,
+          "diet": "nonveg",
+          "description": null,
+          "sort_order": 12
+        }
+      ]
+    },
+    {
+      "name": "Biryani & Rice",
+      "note": "Biryani is made with seeraga samba rice",
+      "sort_order": 12,
+      "dishes": [
+        {
+          "name": "Chicken Biryani",
+          "price": 280,
+          "diet": "nonveg",
+          "description": null,
+          "sort_order": 1
+        },
+        {
+          "name": "Mutton Biryani",
+          "price": 390,
+          "diet": "nonveg",
+          "description": null,
+          "sort_order": 2
+        },
+        {
+          "name": "Prawn Biryani",
+          "price": 420,
+          "diet": "nonveg",
+          "description": null,
+          "sort_order": 3
+        },
+        {
+          "name": "Fish Biryani",
+          "price": 360,
+          "diet": "nonveg",
+          "description": null,
+          "sort_order": 4
+        },
+        {
+          "name": "Egg Biryani",
+          "price": 220,
+          "diet": "egg",
+          "description": null,
+          "sort_order": 5
+        },
+        {
+          "name": "Veg Biryani",
+          "price": 200,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 6
+        },
+        {
+          "name": "Kuska",
+          "price": 160,
+          "diet": "veg",
+          "description": "Plain biryani rice",
+          "sort_order": 7
+        },
+        {
+          "name": "Biryani & Chicken 65 Combo",
+          "price": 340,
+          "diet": "nonveg",
+          "description": null,
+          "sort_order": 8
+        },
+        {
+          "name": "Ghee Rice",
+          "price": 170,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 9
+        },
+        {
+          "name": "Sambar Rice",
+          "price": 130,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 10
+        },
+        {
+          "name": "Bisi Bele Bath",
+          "price": 140,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 11
+        },
+        {
+          "name": "Curd Rice",
+          "price": 110,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 12
+        },
+        {
+          "name": "Lemon Rice",
+          "price": 120,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 13
+        },
+        {
+          "name": "Puliyodarai",
+          "price": 120,
+          "diet": "veg",
+          "description": "Tamarind rice",
+          "sort_order": 14
+        },
+        {
+          "name": "Tomato Rice",
+          "price": 120,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 15
+        },
+        {
+          "name": "Coconut Rice",
+          "price": 125,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 16
+        },
+        {
+          "name": "Veg Fried Rice",
+          "price": 180,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 17
+        },
+        {
+          "name": "Egg Fried Rice",
+          "price": 200,
+          "diet": "egg",
+          "description": null,
+          "sort_order": 18
+        },
+        {
+          "name": "Chicken Fried Rice",
+          "price": 230,
+          "diet": "nonveg",
+          "description": null,
+          "sort_order": 19
+        },
+        {
+          "name": "Veg Noodles",
+          "price": 180,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 20
+        },
+        {
+          "name": "Chicken Noodles",
+          "price": 230,
+          "diet": "nonveg",
+          "description": null,
+          "sort_order": 21
+        },
+        {
+          "name": "Steamed Ponni Rice",
+          "price": 70,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 22
+        }
+      ]
+    },
+    {
+      "name": "Meals",
+      "note": "Lunch only, 12 noon to 3.30 pm",
+      "sort_order": 13,
+      "dishes": [
+        {
+          "name": "South Indian Veg Meals",
+          "price": 190,
+          "diet": "veg",
+          "description": "Unlimited, with kootu, poriyal, sambar, rasam",
+          "sort_order": 1
+        },
+        {
+          "name": "Mini Meals",
+          "price": 140,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 2
+        },
+        {
+          "name": "Special Thali",
+          "price": 260,
+          "diet": "veg",
+          "description": "With sweet, poori and variety rice",
+          "sort_order": 3
+        },
+        {
+          "name": "Banana Leaf Meals",
+          "price": 290,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 4
+        },
+        {
+          "name": "Chicken Meals",
+          "price": 290,
+          "diet": "nonveg",
+          "description": null,
+          "sort_order": 5
+        },
+        {
+          "name": "Fish Meals",
+          "price": 320,
+          "diet": "nonveg",
+          "description": null,
+          "sort_order": 6
+        },
+        {
+          "name": "Mutton Meals",
+          "price": 380,
+          "diet": "nonveg",
+          "description": null,
+          "sort_order": 7
+        },
+        {
+          "name": "North Indian Thali",
+          "price": 280,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 8
+        }
+      ]
+    },
+    {
+      "name": "Soups & Sides",
+      "note": null,
+      "sort_order": 14,
+      "dishes": [
+        {
+          "name": "Pepper Rasam",
+          "price": 60,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 1
+        },
+        {
+          "name": "Sambar (bowl)",
+          "price": 50,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 2
+        },
+        {
+          "name": "Attukal Paya",
+          "price": 220,
+          "diet": "nonveg",
+          "description": "Mutton trotter soup",
+          "sort_order": 3
+        },
+        {
+          "name": "Mutton Bone Soup",
+          "price": 160,
+          "diet": "nonveg",
+          "description": null,
+          "sort_order": 4
+        },
+        {
+          "name": "Nandu Soup",
+          "price": 180,
+          "diet": "nonveg",
+          "description": null,
+          "sort_order": 5
+        },
+        {
+          "name": "Chicken Pepper Soup",
+          "price": 140,
+          "diet": "nonveg",
+          "description": null,
+          "sort_order": 6
+        },
+        {
+          "name": "Tomato Soup",
+          "price": 110,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 7
+        },
+        {
+          "name": "Sweet Corn Soup",
+          "price": 120,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 8
+        },
+        {
+          "name": "Veg Manchow Soup",
+          "price": 120,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 9
+        },
+        {
+          "name": "Poriyal / Kootu",
+          "price": 70,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 10
+        },
+        {
+          "name": "Avial",
+          "price": 90,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 11
+        },
+        {
+          "name": "Onion Raita",
+          "price": 60,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 12
+        },
+        {
+          "name": "Appalam (2 pcs)",
+          "price": 30,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 13
+        }
+      ]
+    },
+    {
+      "name": "Desserts",
+      "note": null,
+      "sort_order": 15,
+      "dishes": [
+        {
+          "name": "Rava Kesari",
+          "price": 70,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 1
+        },
+        {
+          "name": "Sakkarai Pongal",
+          "price": 90,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 2
+        },
+        {
+          "name": "Semiya Payasam",
+          "price": 80,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 3
+        },
+        {
+          "name": "Paruppu Payasam",
+          "price": 85,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 4
+        },
+        {
+          "name": "Elaneer Payasam",
+          "price": 130,
+          "diet": "veg",
+          "description": "Chilled tender coconut pudding",
+          "sort_order": 5
+        },
+        {
+          "name": "Gulab Jamun (2 pcs)",
+          "price": 80,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 6
+        },
+        {
+          "name": "Badam Halwa",
+          "price": 140,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 7
+        },
+        {
+          "name": "Carrot Halwa",
+          "price": 110,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 8
+        },
+        {
+          "name": "Bread Halwa",
+          "price": 100,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 9
+        },
+        {
+          "name": "Mysore Pak (2 pcs)",
+          "price": 90,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 10
+        },
+        {
+          "name": "Rasmalai (2 pcs)",
+          "price": 120,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 11
+        },
+        {
+          "name": "Ice Cream (2 scoops)",
+          "price": 110,
+          "diet": "veg",
+          "description": "Butterscotch, vanilla or chocolate",
+          "sort_order": 12
+        },
+        {
+          "name": "Kulfi",
+          "price": 90,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 13
+        },
+        {
+          "name": "Falooda",
+          "price": 170,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 14
+        },
+        {
+          "name": "Sizzling Brownie",
+          "price": 240,
+          "diet": "egg",
+          "description": null,
+          "sort_order": 15
+        }
+      ]
+    },
+    {
+      "name": "Beverages",
+      "note": null,
+      "sort_order": 16,
+      "dishes": [
+        {
+          "name": "Filter Coffee",
+          "price": 45,
+          "diet": "veg",
+          "description": "Served in tumbler and dabarah",
+          "sort_order": 1
+        },
+        {
+          "name": "Masala Tea",
+          "price": 40,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 2
+        },
+        {
+          "name": "Badam Milk (hot or cold)",
+          "price": 90,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 3
+        },
+        {
+          "name": "Neer Mor",
+          "price": 50,
+          "diet": "veg",
+          "description": "Spiced buttermilk",
+          "sort_order": 4
+        },
+        {
+          "name": "Sweet / Salt Lassi",
+          "price": 90,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 5
+        },
+        {
+          "name": "Fresh Lime Juice / Soda",
+          "price": 80,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 6
+        },
+        {
+          "name": "Rose Milk",
+          "price": 80,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 7
+        },
+        {
+          "name": "Jigarthanda",
+          "price": 130,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 8
+        },
+        {
+          "name": "Nannari Sarbath",
+          "price": 70,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 9
+        },
+        {
+          "name": "Tender Coconut",
+          "price": 80,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 10
+        },
+        {
+          "name": "Fresh Juice",
+          "price": 120,
+          "diet": "veg",
+          "description": "Watermelon, mosambi or pineapple",
+          "sort_order": 11
+        },
+        {
+          "name": "Milkshake",
+          "price": 160,
+          "diet": "veg",
+          "description": "Chocolate, mango or strawberry",
+          "sort_order": 12
+        },
+        {
+          "name": "Mineral Water (1 litre)",
+          "price": 30,
+          "diet": "veg",
+          "description": null,
+          "sort_order": 13
+        }
+      ]
+    }
+  ]
+}

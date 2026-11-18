@@ -1,0 +1,76 @@
+// "Call waiter" on the screen-only view (F6). One tap calls a waiter to this table; while the call
+// is waiting it shows how long ago it was made and lets the guest cancel it, and once a waiter has
+// acknowledged it on the staff screen it says one is on the way, then that they are at the table.
+//   call: the table's active call from /api/oasys/waiter (null when there is none)
+//   onCall / onCancel: run the call_waiter / cancel_waiter_call tools; resolve to the tool's result
+import { useEffect, useState } from 'react'
+import Icon from './icons.jsx'
+
+const ago = (iso, now) => {
+  const s = Math.max(0, Math.round((now - Date.parse(iso)) / 1000))
+  return s < 60 ? `${s}s` : `${Math.floor(s / 60)} min`
+}
+
+export default function TabletWaiter({ call, onCall, onCancel }) {
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const [now, setNow] = useState(Date.now())
+  useEffect(() => {
+    if (!call) return
+    const id = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(id)
+  }, [call])
+  useEffect(() => {
+    if (!error) return
+    const id = setTimeout(() => setError(''), 6000)
+    return () => clearTimeout(id)
+  }, [error])
+
+  const act = async (fn) => {
+    setBusy(true)
+    setError('')
+    try {
+      const r = await fn()
+      if (r && r.ok === false) setError(r.error || 'Something went wrong. Please wave to a waiter.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (error) {
+    return (
+      <div className="tablet-inventory bad tablet-waiter" role="alert">
+        <span className="tablet-inventory-dot" aria-hidden="true" />
+        <span>{error}</span>
+      </div>
+    )
+  }
+
+  if (!call) {
+    return (
+      <button className="tablet-inventory tablet-waiter" disabled={busy} onClick={() => act(onCall)} aria-label="Call a waiter to this table">
+        <Icon name="bell" size={18} />
+        <span>{busy ? 'Calling…' : 'Call waiter'}</span>
+      </button>
+    )
+  }
+
+  const arrived = call.status === 'arrived' // the waiter is at the table
+  const coming = call.status === 'acknowledged' || arrived
+  const who = coming && call.acknowledged_by && call.acknowledged_by !== 'Kitchen screen' ? call.acknowledged_by : '' // the waiter's saved name
+  const photo = coming && /^(data:image\/|\/assets\/waiters\/)/.test(call.acknowledged_photo || '') ? call.acknowledged_photo : '' // the waiter's picture
+  return (
+    <div className={`tablet-inventory tablet-waiter ${coming ? 'ok' : 'wait'}`} role="status" aria-live="polite">
+      {photo ? <img className="tablet-waiter-photo" src={photo} alt="" /> : <span className="tablet-inventory-dot" aria-hidden="true" />}
+      <span>
+        {arrived ? (who ? `${who} is at your table` : 'A waiter is at your table') : coming ? (who ? `${who} is on the way` : 'A waiter is on the way') : call.declined_by ? 'Finding another waiter…' : 'Waiter called'}
+        <small> · {ago(arrived ? call.arrived_at || call.acknowledged_at : coming ? call.acknowledged_at : call.created_at, now)}</small>
+      </span>
+      {!coming && (
+        <button className="tablet-waiter-cancel" disabled={busy} onClick={() => act(onCancel)} aria-label="Cancel the waiter call">
+          Cancel
+        </button>
+      )}
+    </div>
+  )
+}

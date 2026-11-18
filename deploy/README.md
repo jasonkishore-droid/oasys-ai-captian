@@ -27,7 +27,7 @@ They share one SQLite database on the mounted disk, so the Captain's kitchen and
    | `GEMINI_LIVE_VOICE` | optional, e.g. `Achird` |
    | `RESTAURANT_NAME` | optional, e.g. `Oasys Restaurant` |
 
-   Do not add `PORT`: Railway sets it.
+   Also set `PORT` = `8080`, and enter `8080` as the target port when you generate the domain (step 5).
 5. **Settings → Networking → Generate Domain.** Open it, then `/kds`, `/waiter`, `/stock`.
 
 The first start builds the image (several minutes: the Captain's dependencies are large), creates Stock Management's database and

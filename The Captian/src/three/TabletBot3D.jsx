@@ -773,6 +773,16 @@ export default function TabletBot3D({ mood = 'idle', speaking = false, busy = fa
           ctx.textAlign = 'center'
           ctx.fillStyle = n <= stars ? '#f5b301' : 'rgba(255,255,255,0.35)'
           ctx.fillText(n <= stars ? '★' : '☆', sx + sw / 2, y + 34)
+          if (stars === n - 0.5) {
+            // half a star (e.g. the 5th of 4.5): the left half of a filled star over the outline
+            ctx.save()
+            ctx.beginPath()
+            ctx.rect(sx, y, sw / 2, 42)
+            ctx.clip()
+            ctx.fillStyle = '#f5b301'
+            ctx.fillText('★', sx + sw / 2, y + 34)
+            ctx.restore()
+          }
           if (tappable) buttons.push({ x: sx, y, w: sw, h: 42, run: pick({ rating: n }), act: false })
         }
         y += 64
@@ -812,7 +822,7 @@ export default function TabletBot3D({ mood = 'idle', speaking = false, busy = fa
           { label: 'Submit', busyLabel: 'Saving…', primary: true, disabled: !stars, run: act('rate_meal', { rating: stars, via: 'tap' }) },
           { label: 'Skip', run: () => p.onClose?.(), act: false },
         ])
-        hint('Tap the stars, or just tell me. Anything to add? Say it.', by)
+        hint('Tap a star twice for a half, or just tell me.', by)
       } else if (order.stage === 'rating_thanks') {
         const low = order.rating <= 2
         line(low ? 'Sorry it wasn’t better' : 'Thank you!', '', { size: 17, weight: 700, alpha: 1 })

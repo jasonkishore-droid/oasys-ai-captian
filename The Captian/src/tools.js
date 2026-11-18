@@ -194,6 +194,10 @@ export function createToolRunner(ctx) {
     return ids
   }
 
+  // stars go from 1 to 5 in half steps (4.5 is fine, 4.3 is not)
+  const validStars = (n) => typeof n === 'number' && n >= 1 && n <= 5 && Number.isInteger(n * 2)
+  const spokenStars = (n) => `${Number.isInteger(n) ? n : `${Math.floor(n)} and a half`} star${n === 1 ? '' : 's'}`
+
   // the rating card after payment: what has been tapped so far, and what was saved for this bill
   let rating = null // { bill_no, stars, tags: Set, saved: stars | 0 }
 
@@ -268,13 +272,13 @@ export function createToolRunner(ctx) {
 
     // Feedback (F8), after the tab is paid. Without a rating it shows the rating card; with one it is
     // saved (rating again, or adding a comment later, updates the same bill's feedback).
-    async rate_meal({ rating: stars, liked, improve, comment, via } = {}) {
+    async rate_meal({ rating: stars, liked, improve, comment, via, confirm } = {}) {
       if (!ctx.current.oasysConnected()) return OASYS_OFF
       const r = ratingFor()
       if (!r) return { ok: false, error: 'There is no recently paid bill to rate.' }
       const note = cleanNote(comment, FEEDBACK_COMMENT_MAX)
       let n = Number(stars)
-      if (!(Number.isInteger(n) && n >= 1 && n <= 5)) n = note && r.saved ? r.saved : 0 // a comment after rating keeps the stars
+      if (!validStars(n)) n = note && r.saved ? r.saved : 0 // a comment after rating keeps the stars
       if (!n) {
         showRating(r)
         return {
@@ -284,6 +288,23 @@ export function createToolRunner(ctx) {
             'The rating card is on screen. In one short sentence, ask how everything was, from 1 to 5 stars (they can also tap). ' +
             'It is optional: if they would rather not, thank them and stop. When they answer, call rate_meal with the rating, ' +
             'and liked / improve if they said what was good or could be better.',
+        }
+      }
+      // a spoken rating is read back first and saved only after the guest's yes (Submit on the card is
+      // its own confirmation, and a comment added to an already saved rating needs no second check)
+      if (via !== 'tap' && confirm !== true && !(note && n === r.saved)) {
+        if (r.stars && (r.stars >= 4) !== (n >= 4)) r.tags.clear()
+        r.stars = n
+        showRating(r)
+        return {
+          ok: true,
+          saved: false,
+          awaiting_confirmation: true,
+          rating: n,
+          next:
+            `Nothing is saved yet. Read it back in one short sentence, e.g. "${spokenStars(n)}, shall I submit that?", and wait. ` +
+            'On a clear yes, call rate_meal again with the same rating, liked, improve and comment, and confirm true. ' +
+            'If they change the number, call rate_meal with the new rating (without confirm) and read it back again.',
         }
       }
       const tapped = [...r.tags]
@@ -319,7 +340,9 @@ export function createToolRunner(ctx) {
     rating_pick({ rating: stars, tag } = {}) {
       const r = ratingFor()
       if (!r) return { ok: false, error: 'There is no recently paid bill to rate.' }
-      if (Number.isInteger(stars) && stars >= 1 && stars <= 5) {
+      if (validStars(stars)) {
+        // tapping the star that is already picked takes off half a star (4 -> 3.5); tapping again puts it back
+        if (stars === r.stars && validStars(stars - 0.5)) stars -= 0.5
         // the tags change meaning across 3 and 4 stars (liked vs could be better), so start them again
         if (r.stars && (r.stars >= 4) !== (stars >= 4)) r.tags.clear()
         r.stars = stars

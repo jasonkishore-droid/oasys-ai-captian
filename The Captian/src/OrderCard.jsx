@@ -259,19 +259,28 @@ export default function OrderCard({ order, onAction, onClose, onBack }) {
       <div className="note surface order-note" role="dialog" aria-label="Rate your meal">
         <strong>How was your meal?</strong>
         <div role="radiogroup" aria-label="Rating" style={{ display: 'flex', gap: 4, margin: '8px 0', fontSize: 30, lineHeight: 1 }}>
-          {[1, 2, 3, 4, 5].map((n) => (
-            <button
-              key={n}
-              role="radio"
-              aria-checked={stars === n}
-              aria-label={`${n} star${n === 1 ? '' : 's'}`}
-              onClick={() => pick({ rating: n })}
-              style={{ background: 'none', border: 0, padding: 2, cursor: 'pointer', font: 'inherit', color: n <= stars ? '#f5b301' : 'currentColor', opacity: n <= stars ? 1 : 0.4 }}
-            >
-              {n <= stars ? '★' : '☆'}
-            </button>
-          ))}
+          {[1, 2, 3, 4, 5].map((n) => {
+            const half = stars === n - 0.5 // this star is half filled (e.g. the 5th of 4.5)
+            return (
+              <button
+                key={n}
+                role="radio"
+                aria-checked={stars === n || half}
+                aria-label={`${n} star${n === 1 ? '' : 's'}${stars === n ? ' (tap again for a half)' : ''}`}
+                onClick={() => pick({ rating: n })}
+                style={{ position: 'relative', background: 'none', border: 0, padding: 2, cursor: 'pointer', font: 'inherit', color: n <= stars ? '#f5b301' : 'currentColor', opacity: n <= stars || half ? 1 : 0.4 }}
+              >
+                {n <= stars ? '★' : '☆'}
+                {half && (
+                  <span aria-hidden="true" style={{ position: 'absolute', left: 2, top: 2, width: '0.5em', overflow: 'hidden', color: '#f5b301' }}>
+                    ★
+                  </span>
+                )}
+              </button>
+            )
+          })}
         </div>
+        {stars > 0 && <p style={{ margin: 0, fontWeight: 600 }}>{stars} of 5</p>}
         {stars > 0 && (
           <>
             <p style={{ margin: '4px 0' }}>{stars >= 4 ? 'What did you like?' : 'What could be better?'}</p>
@@ -285,7 +294,7 @@ export default function OrderCard({ order, onAction, onClose, onBack }) {
           </>
         )}
         {order.error && <p style={{ color: danger }}>{order.error}</p>}
-        <p style={{ opacity: 0.7 }}>Tap the stars, or just tell me. Anything to add? Say it out loud.</p>
+        <p style={{ opacity: 0.7 }}>Tap the stars (tap a star twice for a half), or just tell me. Anything to add? Say it out loud.</p>
         <div className="note-actions">
           <button className="btn primary sm" disabled={!stars || busy} onClick={() => act('rate_meal', { rating: stars, via: 'tap' })}>
             {busy ? 'Saving…' : 'Submit'}

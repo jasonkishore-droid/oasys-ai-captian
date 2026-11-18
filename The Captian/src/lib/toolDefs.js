@@ -507,11 +507,18 @@ export const TOOL_DECLARATIONS = [
     description:
       'Feedback after the tab is paid. Call it WITHOUT a rating once the receipt question is settled: it shows a 1 to 5 star rating card. ' +
       'Ask once, briefly; rating is optional, never push. When the guest gives a rating, call it again WITH the rating, plus what they liked or ' +
-      'what could be better if they said, and any comment in their words. Calling again for the same bill updates it (e.g. a comment added later).',
+      'what could be better if they said, and any comment in their words. A spoken rating is NOT saved at first: the tool tells you to read it ' +
+      'back, and only after the guest says yes do you call it again with confirm true. Calling again for the same bill updates it (e.g. a comment added later).',
     parameters: {
       type: 'OBJECT',
       properties: {
-        rating: { type: 'INTEGER', description: 'Stars from 1 (poor) to 5 (excellent). Map words: "excellent" 5, "good" 4, "okay" 3, "not great" 2, "bad" 1.' },
+        rating: {
+          type: 'NUMBER',
+          description:
+            'Stars from 1 (poor) to 5 (excellent), in half steps: keep a half the guest says ("four and a half", "4.5") as 4.5, never round it. ' +
+            'Map words: "excellent" 5, "good" 4, "okay" 3, "not great" 2, "bad" 1.',
+        },
+        confirm: { type: 'BOOLEAN', description: 'true only after the guest clearly said yes to the rating you read back. Leave it out the first time.' },
         liked: {
           type: 'ARRAY',
           items: { type: 'STRING', enum: ['food', 'service', 'speed', 'value', 'ambience', 'cleanliness'] },

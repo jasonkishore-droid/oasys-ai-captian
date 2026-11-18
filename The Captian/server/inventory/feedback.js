@@ -1,4 +1,5 @@
-// Feedback and rating (F8): after the tab is paid, the guest rates the meal 1 to 5 stars, picks what
+// Feedback and rating (F8): after the tab is paid, the guest rates the meal 1 to 5 stars (half stars
+// allowed: the INTEGER column keeps 4.5 as a real, as SQLite does), picks what
 // they liked or what could be better, and may leave a comment (by voice). One row per bill.
 //
 // Like orders.js, each handler takes the query or body and returns { status, body }.
@@ -33,7 +34,7 @@ const tags = (v, field) => {
 export function parseFeedback(b = {}) {
   const bill_no = text(b.bill_no, 16, 'bill_no') || bad('bill_no is required')
   const rating = Number(b.rating)
-  if (!(Number.isInteger(rating) && rating >= 1 && rating <= 5)) bad('rating is required: a whole number from 1 to 5')
+  if (!(rating >= 1 && rating <= 5 && Number.isInteger(rating * 2))) bad('rating is required: 1 to 5, in half steps (e.g. 4.5)')
   const source = b.source === undefined || b.source === null ? 'tap' : String(b.source)
   if (!['tap', 'voice'].includes(source)) bad('source: tap or voice')
   return {

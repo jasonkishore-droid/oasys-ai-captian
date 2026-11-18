@@ -286,10 +286,10 @@
    goes back to the middle when the menu closes. It never takes a tap away from the menu. */
 .app.studio.menu-open .head,
 .app.studio.menu-open.order-open .head {
-  /* 0.22 size, pinned to the corner: the shift puts its right and bottom edges 24px and 18px from the screen's */
-  translate: calc(11vw - 24px - 94.6px * var(--s)) calc(11vh - 18px - 72.6px * var(--s));
+  /* 0.22 size, shrunk about the centre (as at every other time, so the trip out and the trip back follow
+     the same straight line): the shift puts its right and bottom edges 24px and 18px from the screen's */
+  translate: calc(50vw - 24px - 94.6px * var(--s)) calc(50vh - 18px - 72.6px * var(--s));
   scale: 0.22;
-  transform-origin: 100% 100%;
   z-index: 6;
   pointer-events: none;
 }
@@ -340,11 +340,9 @@
 }
 @media (prefers-reduced-motion: reduce) { .app.studio.convo-connecting .studio-ring, .app.studio.convo-on .studio-ring { animation: none; --ring: 360deg; } }
 
-/* closing the menu: the bot glides slowly back to the centre (it goes into the corner faster) */
+/* opening and closing the menu: the bot goes to the corner and comes back along the same path, at the same speed */
 .app.studio .head,
-.app.studio .studio-floor {
-  transition: translate 1500ms cubic-bezier(0.45, 0, 0.2, 1), scale 1500ms cubic-bezier(0.45, 0, 0.2, 1), opacity 1200ms ease;
-}
+.app.studio .studio-floor,
 .app.studio.menu-open .head,
 .app.studio.menu-open .studio-floor {
   transition: translate 700ms cubic-bezier(0.2, 0.7, 0.2, 1), scale 700ms cubic-bezier(0.2, 0.7, 0.2, 1), opacity 400ms ease;
